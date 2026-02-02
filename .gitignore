@@ -37,6 +37,7 @@ env/
 *.db
 *.sqlite
 *.sqlite3
+*.csv
 
 # Environment variables
 .env

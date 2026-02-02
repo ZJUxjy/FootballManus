@@ -22,6 +22,7 @@ fm_manager/
 │   └── database.py     # 数据库连接
 ├── engine/             # 游戏引擎
 │   ├── match_engine.py # 比赛模拟
+│   ├── season_simulator.py  # 联赛赛季模拟 ⭐ NEW
 │   ├── finance_engine.py
 │   ├── transfer_engine.py
 │   └── calendar.py
@@ -38,18 +39,35 @@ fm_manager/
 │   ├── main.py         # CLI 入口
 │   ├── ui/             # Rich UI 组件
 │   └── client.py       # 服务器连接
-└── data/               # 数据模块
-    ├── seeds/          # 初始数据
-    ├── fetcher.py      # 外部 API 获取
-    ├── importer.py     # 数据导入
-    └── generators.py   # 数据生成
+├── data/               # 数据模块
+│   ├── seeds/          # 初始数据
+│   ├── fetcher.py      # 外部 API 获取
+│   ├── importer.py     # 数据导入
+│   └── generators.py   # 数据生成
+└── scripts/            # 工具脚本 ⭐
+    ├── init_db.py
+    ├── import_compact_data.py
+    ├── simulate_season.py     # 赛季模拟
+    ├── test_match_engine.py   # 测试套件
+    └── demo_match.py          # 演示脚本
 ```
 
 ## 设计文档
 
+### 项目规划（根目录）
 - [GAME_DESIGN.md](GAME_DESIGN.md) - 完整的游戏设计文档
 - [ARCHITECTURE.md](ARCHITECTURE.md) - 技术架构设计
 - [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) - 详细开发计划
+- [DATA_SOURCES.md](DATA_SOURCES.md) - 数据来源方案
+
+### 技术实现（doc/ 目录）
+- [doc/MATCH_SIMULATION_ANALYSIS.md](doc/MATCH_SIMULATION_ANALYSIS.md) - 比赛模拟维度分析
+- [doc/DYNAMIC_STATE.md](doc/DYNAMIC_STATE.md) - 动态状态系统
+- [doc/SEASON_SIMULATION.md](doc/SEASON_SIMULATION.md) - 赛季模拟系统
+- [doc/MATCH_ENGINE.md](doc/MATCH_ENGINE.md) - 比赛引擎 V1
+
+### 完整文档索引
+→ [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
 
 ## 快速开始
 
@@ -72,35 +90,32 @@ pip install -e ".[dev]"
 ```bash
 # 生成并导入紧凑数据集
 python scripts/import_compact_data.py
-
-# 或使用原有种子数据
-python scripts/init_db.py
 ```
 
-#### 方案 B: 下载真实 FIFA 数据
-从 Kaggle 下载 FIFA 22/23/24 数据集 (~18000 球员):
+### 运行赛季模拟
 
 ```bash
-# 1. 安装 Kaggle CLI
-pip install kaggle
+# 模拟英超赛季
+python scripts/simulate_season.py --league "Premier League"
 
-# 2. 配置 API Key (从 https://www.kaggle.com/account 下载)
-# 将 kaggle.json 放在 ~/.kaggle/
+# 模拟德甲赛季
+python scripts/simulate_season.py --league "Bundesliga"
 
-# 3. 查看可用数据源
-python scripts/download_data.py --source list
-
-# 4. 下载并导入 FIFA 数据
-python scripts/download_data.py --source kaggle --dataset fifa-24 --import
+# 多赛季统计分析 (查看冠军分布)
+python scripts/simulate_season.py --league "Bundesliga" --multi 10
 ```
 
-#### 方案 C: Football Manager 数据
-如果你有 FM 2024，可以导出数据:
+### 测试比赛引擎
 
 ```bash
-# 使用 FM Editor 导出为 CSV
-# 然后导入
-python scripts/download_data.py --source fm --file path/to/fm_export.csv
+# 运行测试套件
+python scripts/test_match_engine.py
+
+# 实时比赛演示
+python scripts/demo_match.py --mode live
+
+# 批量模拟统计
+python scripts/demo_match.py --mode sim
 ```
 
 ### 启动服务器
