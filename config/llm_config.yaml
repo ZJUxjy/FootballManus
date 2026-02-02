@@ -1,0 +1,121 @@
+# LLM Configuration for FM Manager
+# Copy this file to config/llm_config.local.yaml and customize
+
+# Default provider settings
+llm:
+  # Provider: openai, anthropic, local, or mock
+  provider: mock
+  
+  # Model name (provider-specific)
+  # OpenAI: gpt-4, gpt-4-turbo, gpt-3.5-turbo
+  # Anthropic: claude-3-opus, claude-3-sonnet, claude-3-haiku
+  # Local: depends on your local model
+  # Mock: any name (for testing)
+  model: default
+  
+  # Generation parameters
+  temperature: 0.7
+  max_tokens: 1000
+  
+  # Retry settings
+  max_retries: 3
+  timeout: 30
+  
+  # Caching
+  enable_cache: true
+  cache_ttl_seconds: 3600  # 1 hour
+  cache_max_size: 1000
+
+# Provider-specific settings
+providers:
+  openai:
+    # API key - leave empty to use environment variable OPENAI_API_KEY
+    api_key: ""
+    
+    # Base URL - leave empty for default (https://api.openai.com/v1)
+    # Can be set to alternative endpoints like Azure OpenAI
+    base_url: ""
+    
+    # Organization ID (optional)
+    organization: ""
+    
+  anthropic:
+    # API key - leave empty to use environment variable ANTHROPIC_API_KEY
+    api_key: ""
+    
+    # Base URL - leave empty for default
+    base_url: ""
+    
+  local:
+    # Local LLM server URL (e.g., llama.cpp, text-generation-webui)
+    base_url: "http://localhost:8000/v1"
+    
+    # API key (usually not needed for local, but some servers require it)
+    api_key: "dummy"
+    
+    # Model name as exposed by the local server
+    model: "local-model"
+
+# Cost tracking (USD per 1K tokens)
+pricing:
+  gpt-4:
+    prompt: 0.03
+    completion: 0.06
+  gpt-4-turbo:
+    prompt: 0.01
+    completion: 0.03
+  gpt-3.5-turbo:
+    prompt: 0.0015
+    completion: 0.002
+  claude-3-opus:
+    prompt: 0.015
+    completion: 0.075
+  claude-3-sonnet:
+    prompt: 0.003
+    completion: 0.015
+  claude-3-haiku:
+    prompt: 0.00025
+    completion: 0.00125
+  local:
+    prompt: 0.0
+    completion: 0.0
+  mock:
+    prompt: 0.0
+    completion: 0.0
+
+# Feature-specific settings
+features:
+  # Narrative Engine settings
+  narrative:
+    enabled: true
+    temperature: 0.8
+    max_tokens: 500
+    
+  # AI Manager settings
+  ai_manager:
+    enabled: true
+    temperature: 0.3  # Lower for more consistent decisions
+    max_tokens: 300
+    
+    # How many managers use LLM (0.0 - 1.0)
+    # 1.0 = all AI managers use LLM
+    # 0.0 = no AI managers use LLM (rule-based only)
+    llm_adoption_rate: 0.2  # 20% of AI managers
+    
+  # News System settings
+  news:
+    enabled: true
+    temperature: 0.7
+    max_tokens: 400
+
+# Debug settings
+debug:
+  # Log all LLM requests and responses
+  verbose_logging: false
+  
+  # Save prompts to file for debugging
+  save_prompts: false
+  prompts_dir: "./logs/llm_prompts"
+  
+  # Simulate latency (for testing without API calls)
+  simulate_latency_ms: 0

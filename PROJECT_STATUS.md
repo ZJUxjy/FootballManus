@@ -25,6 +25,13 @@
 - [x] **转会系统**: 报价/谈判/窗口
 - [x] **青训系统**: 球员生成/成长/球探
 
+### Phase 4: LLM 集成 ✅
+- [x] **LLM Client**: 多提供商支持/缓存/Token追踪
+- [x] **叙事引擎**: 比赛叙事/球员故事/赛季回顾
+- [x] **AI 经理**: 个性类型/转会决策/比赛战术
+- [x] **新闻系统**: 多类别/优先级/自动生成
+- [x] **球迷董事会**: 情绪追踪/经理评估/工作安全
+
 ---
 
 ## 🎯 当前状态
@@ -39,20 +46,30 @@
 | 赛季模拟 | ✅ | 双循环赛制，38轮 |
 | 动态状态 | ✅ | 连胜/连败，士气系统 |
 | 积分榜 | ✅ | 实时排名，欧战资格 |
-| **财政系统** | ✅ | 收入/支出/FFP/预算 |
-| **转会系统** | ✅ | 报价/谈判/合同/窗口 |
-| **青训系统** | ✅ | 青年才俊/成长/球探 |
+| 财政系统 | ✅ | 收入/支出/FFP/预算 |
+| 转会系统 | ✅ | 报价/谈判/合同/窗口 |
+| 青训系统 | ✅ | 青年才俊/成长/球探 |
+| **LLM Client** | ✅ | OpenAI/Claude/本地支持 |
+| **叙事引擎** | ✅ | 比赛/球员/赛季叙事 |
+| **AI 经理** | ✅ | 8种个性/转会/战术 |
+| **新闻系统** | ✅ | 实时新闻/突发/分类 |
+| **球迷董事会** | ✅ | 情绪/评估/工作安全 |
 
 ### 核心引擎模块
 
 ```
 fm_manager/engine/
-├── match_engine_v2.py      # 比赛模拟 (射门机制)
-├── season_simulator.py     # 赛季模拟
-├── team_state.py           # 动态状态
-├── finance_engine.py       # 财政系统 ⭐ 新增
-├── transfer_engine.py      # 转会系统 ⭐ 新增
-└── youth_engine.py         # 青训系统 ⭐ 新增
+├── match_engine_v2.py      # 比赛模拟 ✅
+├── season_simulator.py     # 赛季模拟 ✅
+├── team_state.py           # 动态状态 ✅
+├── finance_engine.py       # 财政系统 ✅
+├── transfer_engine.py      # 转会系统 ✅
+├── youth_engine.py         # 青训系统 ✅
+├── llm_client.py           # LLM 客户端 ✅
+├── narrative_engine.py     # 叙事引擎 ✅
+├── ai_manager.py           # AI 经理 ✅
+├── news_system.py          # 新闻系统 ✅
+└── fan_board_system.py     # 球迷董事会 ✅
 ```
 
 ### 技术栈
@@ -61,25 +78,26 @@ fm_manager/engine/
 - **数据库**: SQLite (开发) / PostgreSQL (生产)
 - **CLI**: Rich, Textual
 - **模拟**: 基于射门的概率系统
+- **LLM**: OpenAI GPT/Claude/本地模型
 
 ---
 
-## 📋 下一阶段：Phase 4 - LLM 集成
+## 📋 下一阶段：Phase 5 - 完善与扩展
 
-### 4.1 叙事系统 ⏳
-- [ ] 比赛叙事生成
-- [ ] 赛季故事线
-- [ ] 球员个性描写
+### 5.1 杯赛系统 ⏳
+- [ ] 国内杯赛 (足总杯/联赛杯)
+- [ ] 欧冠/欧联赛制
+- [ ] 淘汰赛模拟
 
-### 4.2 AI 经纪人/教练 ⏳
-- [ ] AI 管理对手俱乐部
-- [ ] 动态转会市场
-- [ ] 战术调整模拟
+### 5.2 球员发展 ⏳
+- [ ] 伤病系统
+- [ ] 化学反应
+- [ ] 心理状态
 
-### 4.3 互动系统 ⏳
-- [ ] 新闻系统
-- [ ] 球迷情绪
-- [ ] 董事会期望
+### 5.3 多人联机 ⏳
+- [ ] WebSocket 服务器
+- [ ] 房间管理
+- [ ] 实时同步
 
 ---
 
@@ -94,13 +112,15 @@ fm_manager/engine/
 | 场均进球 | 2.0-2.5 | ~2.6 | ⚠️ 略低 |
 | 冷门概率 | 22% | ~15% | ✅ 自然产生 |
 
-### 核心系统测试
+### LLM 系统测试
 
 | 系统 | 状态 | 关键功能 |
 |-----|------|---------|
-| 财政系统 | ✅ 通过 | 日收入€4.8M, 周赞助€577K, FFP合规检查 |
-| 转会系统 | ✅ 通过 | 报价评估, 合同谈判, 窗口管理 |
-| 青训系统 | ✅ 通过 | 青年才俊生成, 成长曲线, 球探报告 |
+| LLM Client | ✅ | 多提供商/缓存/成本追踪 |
+| 叙事引擎 | ✅ | 标题/时刻/完整报道 |
+| AI 经理 | ✅ | 8个性/评估/决策 |
+| 新闻系统 | ✅ | 5类别/4优先级 |
+| 球迷董事会 | ✅ | 7情绪/5信心度 |
 
 ### 数据规模
 
@@ -109,7 +129,8 @@ fm_manager/engine/
 | 球员 | 2,779 |
 | 俱乐部 | 95 |
 | 联赛 | 5 |
-| 赛季/轮次 | 38/34 |
+| 引擎模块 | 11 |
+| 文档 | 10 |
 
 ---
 
@@ -119,14 +140,14 @@ fm_manager/engine/
 # 1. 初始化数据库
 python scripts/import_compact_data.py
 
-# 2. 测试核心系统
+# 2. 测试 Phase 3 核心系统
 python scripts/test_core_systems.py
 
-# 3. 模拟一个赛季
-python scripts/simulate_season.py --league "Premier League"
+# 3. 测试 Phase 4 LLM 系统
+python scripts/test_phase4_systems.py
 
-# 4. 查看赛季故事
-python scripts/show_season_story.py
+# 4. 模拟一个赛季
+python scripts/simulate_season.py --league "Premier League"
 ```
 
 ---
@@ -146,30 +167,32 @@ fm_manager/
 │   ├── SEASON_SIMULATION.md
 │   ├── FINANCE_SYSTEM.md
 │   ├── TRANSFER_SYSTEM.md
-│   └── YOUTH_SYSTEM.md
+│   ├── YOUTH_SYSTEM.md
+│   ├── LLM_INTEGRATION.md
+│   ├── NARRATIVE_SYSTEM.md
+│   ├── AI_MANAGER.md
+│   ├── NEWS_SYSTEM.md
+│   └── FAN_BOARD_SYSTEM.md
 ├── fm_manager/            # 源代码
-│   ├── engine/            # 游戏引擎
-│   │   ├── match_engine_v2.py
-│   │   ├── season_simulator.py
-│   │   ├── team_state.py
-│   │   ├── finance_engine.py
-│   │   ├── transfer_engine.py
-│   │   └── youth_engine.py
+│   ├── engine/            # 游戏引擎 (11模块)
 │   ├── core/              # 核心模块
 │   └── data/              # 数据模块
 └── scripts/               # 工具脚本
+    ├── test_core_systems.py
+    └── test_phase4_systems.py
 ```
 
 ---
 
 ## 🎮 下一个里程碑
 
-**Phase 4 目标**: LLM 集成 - 叙事系统和AI管理
+**Phase 5 目标**: 完善与扩展
+
+- 杯赛系统 (欧冠/欧联/国内杯)
+- 伤病与化学反应
+- 多人联机支持
+- 存档/读档系统
 
 预计时间: 2-3 周
 
-完成后可以进行:
-- AI 生成的比赛报道
-- 动态新闻系统
-- AI 对手俱乐部管理
-- 为叙事扩展做准备
+完成后可以发布 **MVP v1.0**
