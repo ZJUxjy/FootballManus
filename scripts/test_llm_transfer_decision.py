@@ -1162,7 +1162,7 @@ def main():
         
         # 显示即时结果
         console.print(f"  [cyan]LLM 决策: {result.get('decision', 'unknown').upper()}[/]")
-        if 'bid_amount' in result:
+        if result.get('bid_amount'):
             console.print(f"  [yellow]建议报价: €{result['bid_amount']:,}[/]")
     
     # 显示汇总结果

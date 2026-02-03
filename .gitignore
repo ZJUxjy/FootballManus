@@ -72,3 +72,6 @@ Thumbs.db
 !data/fm_manager_full.db
 !data/players.csv
 !data/teams.csv
+data/cleaned/league_clubs.json
+data/cleaned/leagues_full.json
+config/config.toml
