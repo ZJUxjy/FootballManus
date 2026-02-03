@@ -1,18 +1,18 @@
 # Global LLM configuration
 [llm]
-model = "ark-code-latest"                   # The LLM model to use
-base_url = "https://ark.cn-beijing.volces.com/api/coding/v3"
-api_key = ""
-max_tokens = 4096                           # Maximum number of tokens in the response
-temperature = 0.7                           # Controls randomness
+model = "deepseek-ai/DeepSeek-V3.2"                   # The LLM model to use
+base_url = "https://api.siliconflow.cn/v1"
+api_key = "sk-qbyrsbvhbufpfuynrfhtwyjoukhaciugqkqtrwanpdcudrqq"
+max_tokens = 32552                           # Maximum number of tokens in the response
+temperature = 0.5                           # Controls randomness
 
 # Optional configuration for specific LLM models
 [llm.vision]
-model = "ark-code-latest"
-base_url = "https://ark.cn-beijing.volces.com/api/coding/v3"
-api_key = ""
-max_tokens = 4096
-temperature = 0.7
+model = "Pro/zai-org/GLM-4.7"
+base_url = "https://api.siliconflow.cn/v1"
+api_key = "sk-qbyrsbvhbufpfuynrfhtwyjoukhaciugqkqtrwanpdcudrqq"
+max_tokens = 32552
+temperature = 0.5
 
 # Feature-specific settings
 [features]

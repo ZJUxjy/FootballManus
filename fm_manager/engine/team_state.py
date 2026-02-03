@@ -156,19 +156,103 @@ class TeamDynamicState:
 
 
 @dataclass
+class PlayerMatchStats:
+    """Single match player statistics for detailed match tracking."""
+
+    # === Existing fields (preserved for compatibility) ===
+    minutes_played: int = 0
+    passes_attempted: int = 0
+    passes_completed: int = 0
+    shots: int = 0
+    shots_on_target: int = 0
+    tackles: int = 0
+    interceptions: int = 0
+    fouls: int = 0
+
+    # === New offensive statistics ===
+    goals: int = 0                      # Goals scored
+    assists: int = 0                    # Assists
+    key_passes: int = 0                 # Key passes (passes leading to shots)
+    crosses: int = 0                    # Cross attempts
+    crosses_successful: int = 0         # Successful crosses
+    dribbles: int = 0                   # Successful dribbles
+    dribbles_failed: int = 0            # Failed dribbles
+    big_chances_created: int = 0        # Big chances created
+    big_chances_missed: int = 0         # Big chances missed
+    through_balls: int = 0              # Through balls
+
+    # === New defensive statistics ===
+    blocks: int = 0                     # Shots/passes blocked
+    clearances: int = 0                 # Clearances
+    aerial_duels_won: int = 0           # Aerial duels won
+    aerial_duels_lost: int = 0          # Aerial duels lost
+    offsides: int = 0                   # Offside calls
+
+    # === Goalkeeper specific ===
+    saves: int = 0                      # Total saves
+    saves_caught: int = 0               # Saves caught (held)
+    saves_parried: int = 0              # Saves parried (deflected)
+    punches: int = 0                    # Punches clearances
+    one_on_one_saves: int = 0           # One-on-one saves
+    high_claims: int = 0                # High balls claimed
+    goals_conceded: int = 0             # Goals conceded (GK only)
+    clean_sheets: int = 0               # Clean sheets
+
+    # === Rating ===
+    match_rating: float = 6.0           # Match rating (0-10)
+
+    # === Other ===
+    yellow_cards: int = 0               # Yellow cards
+    red_cards: int = 0                  # Red cards
+    own_goals: int = 0                  # Own goals
+
+    def get_pass_accuracy(self) -> float:
+        """Get pass completion percentage."""
+        if self.passes_attempted == 0:
+            return 0.0
+        return (self.passes_completed / self.passes_attempted) * 100
+
+    def get_shot_accuracy(self) -> float:
+        """Get shot on target percentage."""
+        if self.shots == 0:
+            return 0.0
+        return (self.shots_on_target / self.shots) * 100
+
+    def get_cross_accuracy(self) -> float:
+        """Get cross completion percentage."""
+        if self.crosses == 0:
+            return 0.0
+        return (self.crosses_successful / self.crosses) * 100
+
+    def get_dribble_success_rate(self) -> float:
+        """Get dribble success percentage."""
+        total_dribbles = self.dribbles + self.dribbles_failed
+        if total_dribbles == 0:
+            return 0.0
+        return (self.dribbles / total_dribbles) * 100
+
+    def get_aerial_success_rate(self) -> float:
+        """Get aerial duel win percentage."""
+        total_aerial = self.aerial_duels_won + self.aerial_duels_lost
+        if total_aerial == 0:
+            return 0.0
+        return (self.aerial_duels_won / total_aerial) * 100
+
+
+@dataclass
 class PlayerMatchState:
     """Track a player's state during a season."""
     player_id: int
     player_name: str
-    
+
     # Physical state
     fitness: float = 100.0  # 0-100
     fatigue: float = 0.0    # 0-100 (inverse of fitness)
-    
+
     # Form and confidence
     form: float = 50.0      # 0-100
     confidence: float = 50.0  # 0-100
-    
+
     # Match history
     matches_played: int = 0
     goals_scored: int = 0
