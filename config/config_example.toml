@@ -1,0 +1,33 @@
+# Global LLM configuration
+[llm]
+model = "ark-code-latest"                   # The LLM model to use
+base_url = "https://ark.cn-beijing.volces.com/api/coding/v3"
+api_key = ""
+max_tokens = 4096                           # Maximum number of tokens in the response
+temperature = 0.7                           # Controls randomness
+
+# Optional configuration for specific LLM models
+[llm.vision]
+model = "ark-code-latest"
+base_url = "https://ark.cn-beijing.volces.com/api/coding/v3"
+api_key = ""
+max_tokens = 4096
+temperature = 0.7
+
+# Feature-specific settings
+[features]
+# AI Manager settings
+ai_manager_enabled = true
+ai_manager_temperature = 0.3
+ai_manager_max_tokens = 300
+llm_adoption_rate = 0.2
+
+# Narrative Engine settings
+narrative_enabled = true
+narrative_temperature = 0.8
+narrative_max_tokens = 500
+
+# News System settings
+news_enabled = true
+news_temperature = 0.7
+news_max_tokens = 400

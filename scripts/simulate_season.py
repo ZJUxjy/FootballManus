@@ -36,37 +36,53 @@ from sqlalchemy import select
 console = Console()
 
 
-async def simulate_league_season(league_name: str | None = None, league_id: int | None = None):
+async def simulate_league_season(league_name: str | None = None, league_id: int | None = None, engine_version: str = "v2"):
     """Simulate a full season for a league."""
     await init_db()
     session_maker = get_session_maker()
-    
+
+    # League name to country mapping for fm_manager_fm24.db
+    league_countries = {
+        "Premier League": "England",
+        "La Liga": "Spain",
+        "Bundesliga": "Germany",
+        "Serie A": "Italy",
+        "Ligue 1": "France",
+    }
+
     async with session_maker() as session:
         # Find league
         if league_id:
             league = await session.get(League, league_id)
         elif league_name:
-            result = await session.execute(
-                select(League).where(League.name == league_name)
-            )
+            country = league_countries.get(league_name)
+            if country:
+                result = await session.execute(
+                    select(League).where(
+                        (League.name == league_name) & (League.country == country))
+                )
+            else:
+                result = await session.execute(
+                    select(League).where(League.name == league_name)
+                )
             league = result.scalar_one_or_none()
         else:
             # Default to first league
             result = await session.execute(select(League).limit(1))
             league = result.scalar_one_or_none()
-        
+
         if not league:
             console.print("[red]League not found![/]")
             return
-        
+
+        engine_display = f" (Engine v{engine_version[1]})" if engine_version else ""
         console.print(Panel(
-            f"[bold green]Simulating {league.name} Season 2024-25[/]\n"
+            f"[bold green]Simulating {league.name} Season 2024-25{engine_display}[/]\n"
             f"[dim]Format: Double round-robin ({league.teams_count} teams)[/]",
             border_style="green"
         ))
-        
-        # Create simulator
-        simulator = SeasonSimulator(session)
+
+        simulator = SeasonSimulator(session, engine_version=engine_version)
         
         # Progress callback
         def on_progress(current: int, total: int):
@@ -278,16 +294,23 @@ def main():
         metavar="N",
         help="Simulate N seasons for statistical analysis"
     )
-    
+    parser.add_argument(
+        "--engine",
+        type=str,
+        default="v2",
+        choices=["v2", "v3"],
+        help="Match engine version (default: v2)"
+    )
+
     args = parser.parse_args()
-    
+
     if args.multi:
         asyncio.run(simulate_multiple_seasons(
             args.league or "Premier League",
             args.multi
         ))
     else:
-        asyncio.run(simulate_league_season(args.league, args.league_id))
+        asyncio.run(simulate_league_season(args.league, args.league_id, args.engine))
 
 
 if __name__ == "__main__":

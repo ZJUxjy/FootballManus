@@ -68,3 +68,7 @@ saves/
 # OS
 .DS_Store
 Thumbs.db
+
+!data/fm_manager_full.db
+!data/players.csv
+!data/teams.csv

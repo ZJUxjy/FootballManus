@@ -206,6 +206,8 @@ class LLMClient:
             if not api_key:
                 raise ValueError("OpenAI API key required. Set OPENAI_API_KEY env var.")
             
+            # Standard OpenAI client - works with OpenAI-compatible APIs
+            # including Volces/Ark, OpenRouter, etc.
             self.client = openai.OpenAI(api_key=api_key, base_url=base_url)
         
         elif self.provider == LLMProvider.ANTHROPIC:

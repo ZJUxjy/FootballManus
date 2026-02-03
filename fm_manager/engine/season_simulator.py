@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from fm_manager.core.models import Club, League, Match, MatchStatus, Player, Season
 from fm_manager.engine.match_engine_v2 import MatchSimulatorV2, MatchState
+from fm_manager.engine.match_engine_v3 import MatchSimulatorV3, LeagueParameters, MatchState as MatchStateV3
 from fm_manager.engine.team_state import (
     TeamDynamicState,
     PlayerMatchState,
@@ -100,7 +101,7 @@ class SeasonResult:
     standings: list[LeagueTableEntry] = field(default_factory=list)
     
     # All matches
-    matches: list[MatchState] = field(default_factory=list)
+    matches: list[MatchState | MatchStateV3] = field(default_factory=list)
     
     # Statistics
     stats: SeasonStats = field(default_factory=lambda: SeasonStats())
@@ -249,13 +250,18 @@ class FixtureGenerator:
 
 class SeasonSimulator:
     """Simulate an entire league season with dynamic team states."""
-    
-    def __init__(self, session: AsyncSession):
+
+    def __init__(self, session: AsyncSession, engine_version: str = "v2"):
         self.session = session
         self.fixture_generator = FixtureGenerator()
-        self.match_simulator = MatchSimulatorV2()
         self.state_manager = TeamStateManager()
-    
+        self.engine_version = engine_version
+
+        if engine_version == "v3":
+            self.match_simulator = MatchSimulatorV3()
+        else:
+            self.match_simulator = MatchSimulatorV2()
+
     async def simulate_season(
         self,
         league_id: int,
@@ -283,6 +289,10 @@ class SeasonSimulator:
         league = await self.session.get(League, league_id)
         if not league:
             raise ValueError(f"League {league_id} not found")
+
+        if self.engine_version == "v3":
+            league_params = LeagueParameters.get_by_name(league.name)
+            self.match_simulator.league_params = league_params  # type: ignore
         
         # Get all clubs
         result = await self.session.execute(
@@ -334,7 +344,7 @@ class SeasonSimulator:
         home_records: dict[int, list[int]] = {c.id: [0, 0, 0] for c in clubs}  # W, D, L
         
         # Simulate all matchdays
-        all_matches: list[MatchState] = []
+        all_matches: list[MatchState | MatchStateV3] = []
         total_matchdays = len(fixtures)
         
         for matchday_idx, matchday in enumerate(fixtures):
@@ -467,7 +477,7 @@ class SeasonSimulator:
         self,
         home_club: Club,
         away_club: Club,
-        match_state: MatchState,
+        match_state: MatchState | MatchStateV3,
         matchday: int,
     ) -> None:
         """Update dynamic states after a match."""
@@ -569,7 +579,7 @@ class SeasonSimulator:
     
     def _generate_stats(
         self,
-        matches: list[MatchState],
+        matches: list[MatchState | MatchStateV3],
         clubs: list[Club],
         home_records: dict[int, list[int]],
     ) -> SeasonStats:
