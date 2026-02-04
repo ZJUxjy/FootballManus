@@ -75,3 +75,4 @@ Thumbs.db
 data/cleaned/league_clubs.json
 data/cleaned/leagues_full.json
 config/config.toml
+opencode

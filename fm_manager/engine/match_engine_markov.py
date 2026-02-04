@@ -154,7 +154,7 @@ def compute_shot_xg(
     defender_accuracy_penalty = 0.15 * defensive_pressure
 
     on_target_prob = accuracy_base + positioning_bonus - defender_accuracy_penalty
-    on_target_prob = max(0.25, min(0.80, on_target_prob))
+    on_target_prob = max(0.25, min(0.80, on_target_prob**2))
 
     # ========================================
     # 6. Decompose into goal/save/miss

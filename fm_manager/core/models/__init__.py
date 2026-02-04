@@ -5,6 +5,18 @@ from fm_manager.core.models.club import Club, ClubReputation
 from fm_manager.core.models.league import League, LeagueFormat, Season
 from fm_manager.core.models.match import Match, MatchStatus, MatchEventType
 from fm_manager.core.models.transfer import Transfer, TransferStatus, TransferWindow
+from fm_manager.core.models.cup_competition import (
+    CupCompetition,
+    CupEdition,
+    CupRound,
+    CupParticipant,
+    CupMatch,
+    CupPrizeMoney,
+    CupType,
+    CupFormat,
+    CupRoundType,
+    CupStatus,
+)
 
 __all__ = [
     # Player
@@ -27,4 +39,14 @@ __all__ = [
     "Transfer",
     "TransferStatus",
     "TransferWindow",
+    "CupCompetition",
+    "CupEdition",
+    "CupRound",
+    "CupParticipant",
+    "CupMatch",
+    "CupPrizeMoney",
+    "CupType",
+    "CupFormat",
+    "CupRoundType",
+    "CupStatus",
 ]

@@ -95,6 +95,8 @@ class AdaptedPlayer:
         self.fitness = max(0, min(100, int(player_data.stamina)))
         self.morale = max(0, min(100, int(player_data.happiness)))
         self.form = max(0, min(100, int(player_data.match_shape)))
+        self.age = player_data.age
+        self.club_id = player_data.club_id
 
         # Expose player ID for rotation system
         self.id = player_data.id

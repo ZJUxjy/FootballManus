@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fm_manager.data.cleaned_data_loader import load_for_match_engine
 from fm_manager.engine.match_engine_adapter import ClubSquadBuilder
-from fm_manager.engine.match_engine_markov import MarkovMatchEngine
+from fm_manager.engine.match_engine_markov_v2 import EnhancedMarkovEngine as MarkovMatchEngine
 from fm_manager.engine.match_stats_exporter import SeasonStatsTracker, MatchStatsExporter
 from fm_manager.engine.rotation_system import MatchImportance, MatchScheduler
 from colorama import Fore, Style, init as colorama_init  # type: ignore[import-not-found]
@@ -31,8 +31,8 @@ def simulate_season(enable_rotation: bool = False):
     clubs, players = load_for_match_engine()
 
     # Find Premier League clubs
-    # premier_league = [c for c in clubs.values() if c.league == "La Liga"]
     premier_league = [c for c in clubs.values() if c.league == "England Premier League"]
+    # premier_league = [c for c in clubs.values() if c.league == "England Premier League"]
     if len(premier_league) != 20:
         print(f"Warning: Found {len(premier_league)} clubs, expected 20")
         premier_league = premier_league[:20]
