@@ -6,7 +6,7 @@ including momentum, fatigue, and morale.
 
 import random
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, List, Tuple, Optional
 
 from fm_manager.core.models import Player, Position
 
@@ -30,7 +30,7 @@ class TeamDynamicState:
     away_form: float = 50.0
     
     # Recent performance (last 5 matches rating)
-    recent_performance: list[float] = field(default_factory=list)
+    recent_performance: List[float] = field(default_factory=list)
     
     # Consistency (how stable the team's performance is)
     consistency_rating: float = 50.0
@@ -260,7 +260,7 @@ class PlayerMatchState:
     minutes_played: int = 0
     
     # Recent performances (last 5 match ratings)
-    recent_ratings: list[float] = field(default_factory=list)
+    recent_ratings: List[float] = field(default_factory=list)
     
     # Injury status
     is_injured: bool = False
@@ -404,15 +404,15 @@ class TeamStateManager:
         self.player_states[player.id] = state
         return state
     
-    def get_team_state(self, club_id: int) -> TeamDynamicState | None:
+    def get_team_state(self, club_id: int) -> Optional[TeamDynamicState]:
         """Get state for a team."""
         return self.team_states.get(club_id)
-    
-    def get_player_state(self, player_id: int) -> PlayerMatchState | None:
+
+    def get_player_state(self, player_id: int) -> Optional[PlayerMatchState]:
         """Get state for a player."""
         return self.player_states.get(player_id)
     
-    def get_available_players(self, club_id: int) -> list[PlayerMatchState]:
+    def get_available_players(self, club_id: int) -> List[PlayerMatchState]:
         """Get all available players for a team."""
         # This would need to be connected to the database
         # For now, return all players that are available
@@ -424,9 +424,9 @@ class TeamStateManager:
     def get_best_lineup(
         self,
         club_id: int,
-        players: list[Player],
+        players: List[Player],
         formation: str = "4-3-3"
-    ) -> list[Player]:
+    ) -> List[Player]:
         """Get the best available lineup considering form and fitness."""
         # Get states for all players
         player_states = [
@@ -460,7 +460,7 @@ class TeamStateManager:
             state.recover(days)
             state.update_injury()
     
-    def get_league_form_table(self) -> list[tuple[str, float, int]]:
+    def get_league_form_table(self) -> List[Tuple[str, float, int]]:
         """Get table sorted by current form."""
         form_data = []
         for state in self.team_states.values():

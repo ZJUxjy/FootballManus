@@ -11,7 +11,7 @@ import random
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from enum import Enum, auto
-from typing import Callable
+from typing import Callable, Union, Optional, Dict, List, Tuple
 
 from fm_manager.core.models import Club, Player, TransferStatus
 
@@ -59,11 +59,11 @@ class TransferOffer:
     # Negotiation
     status: TransferStatus = TransferStatus.PENDING
     offered_at: date = field(default_factory=date.today)
-    responded_at: date | None = None
+    responded_at: Optional[date] = None
     
     # Counter offer
-    counter_fee: int | None = None
-    counter_loan_fee: int | None = None
+    counter_fee: Optional[int] = None
+    counter_loan_fee: Optional[int] = None
     
     # Notes
     notes: str = ""
@@ -94,10 +94,10 @@ class ContractOffer:
     appearance_bonus: int = 0
     
     # Clauses
-    release_clause: int | None = None
-    minimum_fee_clause: int | None = None
-    buy_back_clause: int | None = None
-    buy_back_club_id: int | None = None
+    release_clause: Optional[int] = None
+    minimum_fee_clause: Optional[int] = None
+    buy_back_clause: Optional[int] = None
+    buy_back_club_id: Optional[int] = None
     
     # Squad role
     squad_role: str = "rotation"  # star, first_team, rotation, prospect
@@ -123,7 +123,7 @@ class PlayerTransferWillingness:
     interest_in_move: int = 50
     
     # Interest in specific clubs (club_id -> interest)
-    club_interest: dict[int, int] = field(default_factory=dict)
+    club_interest: Dict[int, int] = field(default_factory=dict)
     
     # Reasons
     wants_more_playing_time: bool = False
@@ -213,7 +213,7 @@ class TransferWindowManager:
             end_date=winter_end,
         ))
     
-    def is_window_open(self, check_date: date | None = None) -> bool:
+    def is_window_open(self, check_date: Optional[date] = None) -> bool:
         """Check if any transfer window is open."""
         if check_date is None:
             check_date = date.today()
@@ -223,7 +223,7 @@ class TransferWindowManager:
                 return True
         return False
     
-    def get_active_window(self, check_date: date | None = None) -> TransferWindow | None:
+    def get_active_window(self, check_date: Optional[date] = None) -> Optional[TransferWindow]:
         """Get the currently active transfer window."""
         if check_date is None:
             check_date = date.today()
@@ -392,7 +392,7 @@ class ContractNegotiator:
         self,
         player: Player,
         offer: ContractOffer,
-        current_club_offer: ContractOffer | None = None,
+        current_club_offer: Optional[ContractOffer] = None,
     ) -> dict:
         """Evaluate a contract offer from a player's perspective.
         
@@ -467,7 +467,7 @@ class TransferEngine:
     def __init__(self):
         self.valuation_calculator = PlayerValuationCalculator()
         self.contract_negotiator = ContractNegotiator()
-        self.window_manager: TransferWindowManager | None = None
+        self.window_manager: Optional[TransferWindowManager] = None
     
     def initialize_for_season(self, year: int) -> None:
         """Initialize transfer windows for a season."""
@@ -479,7 +479,7 @@ class TransferEngine:
         selling_club: Club,
         player: Player,
         current_date: date,
-    ) -> tuple[bool, str]:
+    ) -> Tuple[bool, str]:
         """Check if a transfer offer can be made.
         
         Returns:

@@ -2,11 +2,17 @@
 
 from datetime import date
 from enum import Enum as PyEnum
+from typing import Optional, List, TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Integer, String, Text, Date, Float, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fm_manager.core.database import Base
+
+if TYPE_CHECKING:
+    from fm_manager.core.models.league import League
+    from fm_manager.core.models.player import Player
+    from fm_manager.core.models.match import Match
 
 
 class ClubReputation(PyEnum):
@@ -29,7 +35,7 @@ class Club(Base):
     # Basic info
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     short_name: Mapped[str] = mapped_column(String(20), nullable=False)
-    founded_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    founded_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     
     # Location
     city: Mapped[str] = mapped_column(String(100), default="")
@@ -50,7 +56,7 @@ class Club(Base):
     secondary_color: Mapped[str] = mapped_column(String(7), default="#FFFFFF")
     
     # League
-    league_id: Mapped[int | None] = mapped_column(
+    league_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("leagues.id"), nullable=True
     )
     
@@ -73,11 +79,11 @@ class Club(Base):
     training_facility_level: Mapped[int] = mapped_column(Integer, default=50)
     
     # Ownership
-    owner_user_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    owner_user_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     is_ai_controlled: Mapped[bool] = mapped_column(default=True)
-    
+
     # AI Configuration (JSON string)
-    llm_config: Mapped[str | None] = mapped_column(Text, nullable=True)
+    llm_config: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Season objectives
     season_objective: Mapped[str] = mapped_column(String(50), default="mid_table")
@@ -85,17 +91,17 @@ class Club(Base):
     
     # Relationships
     league: Mapped["League"] = relationship(back_populates="clubs")
-    players: Mapped[list["Player"]] = relationship(
+    players: Mapped[List["Player"]] = relationship(
         back_populates="club",
         lazy="dynamic",
     )
-    home_matches: Mapped[list["Match"]] = relationship(
+    home_matches: Mapped[List["Match"]] = relationship(
         "Match",
         foreign_keys="Match.home_club_id",
         back_populates="home_club",
         lazy="dynamic",
     )
-    away_matches: Mapped[list["Match"]] = relationship(
+    away_matches: Mapped[List["Match"]] = relationship(
         "Match",
         foreign_keys="Match.away_club_id",
         back_populates="away_club",

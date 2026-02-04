@@ -2,11 +2,16 @@
 
 from datetime import date
 from enum import Enum as PyEnum
+from typing import Optional, List, TYPE_CHECKING
 
 from sqlalchemy import Integer, String, Date, Boolean, ForeignKey, Text, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fm_manager.core.database import Base
+
+if TYPE_CHECKING:
+    from fm_manager.core.models.club import Club
+    from fm_manager.core.models.match import Match
 
 
 class LeagueFormat(PyEnum):
@@ -50,8 +55,8 @@ class League(Base):
     season_start_month: Mapped[int] = mapped_column(Integer, default=8)  # August
     season_end_month: Mapped[int] = mapped_column(Integer, default=5)  # May
     has_winter_break: Mapped[bool] = mapped_column(Boolean, default=False)
-    winter_break_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    winter_break_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    winter_break_start: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    winter_break_end: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     
     # Match rules
     matches_on_weekdays: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -73,11 +78,11 @@ class League(Base):
     tv_rights_base: Mapped[int] = mapped_column(Integer, default=50_000_000)
     
     # Relationships
-    clubs: Mapped[list["Club"]] = relationship(
+    clubs: Mapped[List["Club"]] = relationship(
         back_populates="league",
         lazy="dynamic",
     )
-    seasons: Mapped[list["Season"]] = relationship(
+    seasons: Mapped[List["Season"]] = relationship(
         back_populates="league",
         lazy="dynamic",
     )
@@ -106,8 +111,8 @@ class Season(Base):
     # upcoming, active, finished
     
     # Dates
-    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     
     # Current state
     current_matchday: Mapped[int] = mapped_column(Integer, default=0)
@@ -115,7 +120,7 @@ class Season(Base):
     
     # Relationships
     league: Mapped["League"] = relationship(back_populates="seasons")
-    matches: Mapped[list["Match"]] = relationship(
+    matches: Mapped[List["Match"]] = relationship(
         back_populates="season",
         lazy="dynamic",
     )

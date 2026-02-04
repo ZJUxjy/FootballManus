@@ -2,11 +2,16 @@
 
 from datetime import datetime, date
 from enum import Enum as PyEnum
+from typing import Optional, TYPE_CHECKING
 
 from sqlalchemy import Integer, String, Date, DateTime, ForeignKey, Text, Enum, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fm_manager.core.database import Base
+
+if TYPE_CHECKING:
+    from fm_manager.core.models.club import Club
+    from fm_manager.core.models.player import Player
 
 
 class TransferStatus(PyEnum):
@@ -36,7 +41,7 @@ class Transfer(Base):
     # Offer details
     offered_fee: Mapped[int] = mapped_column(Integer, nullable=False)  # Transfer fee
     is_loan: Mapped[bool] = mapped_column(Boolean, default=False)
-    loan_duration_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    loan_duration_months: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     loan_wage_split: Mapped[int] = mapped_column(Integer, default=100)  # % paid by loaning club
     
     # Negotiation
@@ -44,39 +49,39 @@ class Transfer(Base):
         DateTime,
         default=datetime.utcnow,
     )
-    responded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    responded_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
     # Counter offer
-    counter_fee: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    counter_fee: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     
     # Status
     status: Mapped[TransferStatus] = mapped_column(
         Enum(TransferStatus),
         default=TransferStatus.PENDING,
     )
-    rejected_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rejected_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Contract terms (for accepted offers)
-    proposed_wage: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    proposed_contract_years: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    signing_on_fee: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    release_clause: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    proposed_wage: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    proposed_contract_years: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    signing_on_fee: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    release_clause: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     
     # Player acceptance
-    player_accepted: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    player_accepted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    player_accepted: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    player_accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
     # Completion
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    actual_fee: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Final fee
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    actual_fee: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Final fee
     
     # Add-ons
-    add_ons_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    add_ons_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     add_ons_max_value: Mapped[int] = mapped_column(Integer, default=0)
     
     # AI/Manager notes
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Relationships
     player: Mapped["Player"] = relationship(foreign_keys=[player_id])

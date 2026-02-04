@@ -9,7 +9,7 @@ Handles all financial aspects of club management:
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from enum import Enum, auto
-from typing import Callable
+from typing import Callable, Union, List, Tuple
 
 from fm_manager.core.models import Club, League, Match, MatchStatus, Player
 
@@ -42,7 +42,7 @@ class FinancialTransaction:
     """A single financial transaction."""
     date: date
     amount: int
-    type: RevenueType | ExpenseType
+    type: Union[RevenueType, ExpenseType]
     description: str
     category: str = ""  # "revenue" or "expense"
 
@@ -95,8 +95,8 @@ class ClubFinances:
     average_attendance: int = 0
     
     # Financial history
-    weekly_history: list[WeeklyFinances] = field(default_factory=list)
-    transactions: list[FinancialTransaction] = field(default_factory=list)
+    weekly_history: List[WeeklyFinances] = field(default_factory=list)
+    transactions: List[FinancialTransaction] = field(default_factory=list)
     
     # FFP tracking
     ffp_three_year_loss: int = 0
@@ -276,7 +276,7 @@ class FinanceCalculator:
         
         return prize_money
     
-    def calculate_weekly_wage_bill(self, players: list[Player]) -> int:
+    def calculate_weekly_wage_bill(self, players: List[Player]) -> int:
         """Calculate total weekly wages for a squad."""
         return sum(p.salary for p in players)
     
@@ -313,7 +313,7 @@ class FFPCalculator:
     
     def calculate_three_year_loss(
         self,
-        transactions: list[FinancialTransaction],
+        transactions: List[FinancialTransaction],
         current_date: date,
     ) -> int:
         """Calculate total loss over the last 3 years.
@@ -344,7 +344,7 @@ class FFPCalculator:
         self,
         three_year_loss: int,
         is_champions_league: bool = True,
-    ) -> tuple[bool, str]:
+    ) -> Tuple[bool, str]:
         """Check if club is FFP compliant.
         
         Returns:
@@ -367,7 +367,7 @@ class FFPCalculator:
         self,
         three_year_loss: int,
         is_repeat_offender: bool = False,
-    ) -> list[str]:
+    ) -> List[str]:
         """Get list of potential FFP sanctions."""
         sanctions = []
         
@@ -442,7 +442,7 @@ class FinanceEngine:
         self,
         club_finances: ClubFinances,
         club: Club,
-        players: list[Player],
+        players: List[Player],
         week: date,
     ) -> WeeklyFinances:
         """Process all weekly financial transactions.
@@ -488,7 +488,7 @@ class FinanceEngine:
         self,
         club_finances: ClubFinances,
         current_date: date,
-    ) -> tuple[bool, str, list[str]]:
+    ) -> Tuple[bool, str, List[str]]:
         """Check FFP compliance status.
         
         Returns:

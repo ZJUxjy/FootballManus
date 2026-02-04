@@ -1,6 +1,6 @@
 """Database configuration and session management."""
 
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -16,8 +16,8 @@ from fm_manager.core.config import settings
 Base = declarative_base()
 
 # Global engine instance
-_engine: AsyncEngine | None = None
-_async_session_maker: async_sessionmaker[AsyncSession] | None = None
+_engine: Optional[AsyncEngine] = None
+_async_session_maker: Optional[async_sessionmaker[AsyncSession]] = None
 
 
 def get_engine() -> AsyncEngine:

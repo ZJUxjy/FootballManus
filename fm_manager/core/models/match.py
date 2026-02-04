@@ -2,6 +2,7 @@
 
 from datetime import datetime, date
 from enum import Enum as PyEnum
+from typing import Optional, List, TYPE_CHECKING
 
 from sqlalchemy import (
     Integer, String, Date, DateTime, ForeignKey, Text, Enum, Boolean
@@ -9,6 +10,11 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fm_manager.core.database import Base
+
+if TYPE_CHECKING:
+    from fm_manager.core.models.club import Club
+    from fm_manager.core.models.player import Player
+    from fm_manager.core.models.league import League, Season
 
 
 class MatchStatus(PyEnum):
@@ -47,8 +53,8 @@ class Match(Base):
     
     # Match info
     matchday: Mapped[int] = mapped_column(Integer, nullable=False)
-    match_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    kickoff_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    match_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    kickoff_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
     # Venue
     venue: Mapped[str] = mapped_column(String(100), default="")
@@ -64,8 +70,8 @@ class Match(Base):
     # Score
     home_score: Mapped[int] = mapped_column(Integer, default=0)
     away_score: Mapped[int] = mapped_column(Integer, default=0)
-    home_halftime_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    away_halftime_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    home_halftime_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    away_halftime_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     
     # Statistics (JSON string for flexibility)
     home_possession: Mapped[int] = mapped_column(Integer, default=50)  # Percentage
@@ -84,17 +90,17 @@ class Match(Base):
     away_red_cards: Mapped[int] = mapped_column(Integer, default=0)
     
     # Events stored as JSON string
-    events: Mapped[str | None] = mapped_column(Text, nullable=True)
-    
+    events: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Lineups stored as JSON string
-    home_lineup: Mapped[str | None] = mapped_column(Text, nullable=True)
-    away_lineup: Mapped[str | None] = mapped_column(Text, nullable=True)
-    
+    home_lineup: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    away_lineup: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Tactics
     home_formation: Mapped[str] = mapped_column(String(10), default="4-3-3")
     away_formation: Mapped[str] = mapped_column(String(10), default="4-3-3")
-    home_tactics: Mapped[str | None] = mapped_column(Text, nullable=True)
-    away_tactics: Mapped[str | None] = mapped_column(Text, nullable=True)
+    home_tactics: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    away_tactics: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Relationships
     season: Mapped["Season"] = relationship(back_populates="matches")
@@ -108,7 +114,7 @@ class Match(Base):
     )
     
     @property
-    def winner_id(self) -> int | None:
+    def winner_id(self) -> Optional[int]:
         """Get the winner's club ID, or None for a draw."""
         if self.status != MatchStatus.FULL_TIME:
             return None

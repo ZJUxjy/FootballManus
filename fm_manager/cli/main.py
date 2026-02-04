@@ -17,7 +17,8 @@ from rich.live import Live
 from rich.text import Text
 
 from fm_manager.cli.client import GameClient
-
+from fm_manager.core.save_load import SaveLoadManager
+from fm_manager.core.database import get_db_session
 
 console = Console()
 
@@ -150,16 +151,20 @@ class FMManagerCLI:
         while self.running:
             choice = Prompt.ask(
                 "\nMain Menu",
-                choices=["join", "create", "list", "exit"],
+                choices=["join", "create", "list", "save", "load", "exit"],
                 default="list"
             )
-            
+
             if choice == "list":
                 await self._list_rooms()
             elif choice == "join":
                 await self._join_room_flow()
             elif choice == "create":
                 await self._create_room_flow()
+            elif choice == "save":
+                self._save_game_flow()
+            elif choice == "load":
+                self._load_game_flow()
             elif choice == "exit":
                 self.running = False
     
@@ -296,6 +301,67 @@ class FMManagerCLI:
             except Exception as e:
                 console.print(f"[red]Error: {e}[/red]")
     
+    def _save_game_flow(self):
+        """Save current game state."""
+        from fm_manager.core.database import get_db_session
+
+        save_manager = SaveLoadManager()
+        save_name = Prompt.ask("Save name")
+
+        current_season = IntPrompt.ask("Current season", default=1)
+        current_week = IntPrompt.ask("Current week", default=1)
+
+        with get_db_session() as session:
+            try:
+                save_path = save_manager.save_game(
+                    session,
+                    save_name,
+                    current_season=current_season,
+                    current_week=current_week,
+                )
+                console.print(f"[green]✓ Game saved to: {save_path}[/green]")
+            except Exception as e:
+                console.print(f"[red]✗ Failed to save: {e}[/red]")
+
+    def _load_game_flow(self):
+        """Load a saved game state."""
+        from fm_manager.core.database import get_db_session
+
+        save_manager = SaveLoadManager()
+        saves = save_manager.get_save_files()
+
+        if not saves:
+            console.print("[dim]No saved games found[/dim]")
+            return
+
+        table = Table(title="Saved Games")
+        table.add_column("#")
+        table.add_column("Name")
+        table.add_column("Date")
+        table.add_column("Season")
+        table.add_column("Week")
+
+        for i, save in enumerate(saves, 1):
+            table.add_row(
+                str(i),
+                save.save_name,
+                save.save_date.strftime("%Y-%m-%d %H:%M"),
+                str(save.current_season),
+                str(save.current_week),
+            )
+
+        console.print(table)
+
+        choice = IntPrompt.ask("Select save", min=1, max=len(saves))
+        selected_save = saves[choice - 1]
+
+        try:
+            game_data = save_manager.load_game(selected_save.save_name)
+            console.print(f"[green]✓ Loaded save: {selected_save.save_name}[/green]")
+            console.print(f"[dim]Season {game_data['current_season']}, Week {game_data['current_week']}[/dim]")
+        except Exception as e:
+            console.print(f"[red]✗ Failed to load: {e}[/red]")
+
     async def _select_club(self):
         """Select a club to manage."""
         # Get room info to see available clubs

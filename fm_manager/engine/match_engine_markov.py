@@ -9,7 +9,7 @@ import random
 import math
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Optional, Callable
+from typing import Optional, Callable, Tuple
 from collections import defaultdict
 
 # Import the new PlayerMatchStats class
@@ -665,7 +665,7 @@ class MarkovMatchEngine:
 
         return value
 
-    def _get_shot_location(self, zone: PitchZone, attacking_team: str) -> tuple[float, float, bool]:
+    def _get_shot_location(self, zone: PitchZone, attacking_team: str) -> Tuple[float, float, bool]:
         """
         Determine shot location based on pitch zone.
 
@@ -714,7 +714,7 @@ class MarkovMatchEngine:
         away_lineup: list,
         home_formation: str = "4-3-3",
         away_formation: str = "4-3-3",
-        callback: Callable[[MatchState], None] | None = None,
+        callback: Optional[Callable[[MatchState], None]] = None,
     ) -> MatchState:
         """Simulate a full 90-minute match."""
         

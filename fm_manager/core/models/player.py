@@ -2,11 +2,16 @@
 
 from datetime import date
 from enum import Enum as PyEnum
+from typing import Optional, Dict
 
 from sqlalchemy import ForeignKey, Integer, String, Float, Date, Text, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import TYPE_CHECKING
 
 from fm_manager.core.database import Base
+
+if TYPE_CHECKING:
+    from fm_manager.core.models.club import Club
 
 
 class Position(PyEnum):
@@ -53,18 +58,18 @@ class Player(Base):
     # Basic info
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    birth_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     nationality: Mapped[str] = mapped_column(String(100), default="Unknown")
     
     # Position
     position: Mapped[Position] = mapped_column(Enum(Position), nullable=False)
-    secondary_position: Mapped[Position | None] = mapped_column(
+    secondary_position: Mapped[Optional[Position]] = mapped_column(
         Enum(Position), nullable=True
     )
     
     # Physical attributes
-    height: Mapped[int | None] = mapped_column(Integer, nullable=True)  # cm
-    weight: Mapped[int | None] = mapped_column(Integer, nullable=True)  # kg
+    height: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # cm
+    weight: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # kg
     preferred_foot: Mapped[Foot] = mapped_column(Enum(Foot), default=Foot.RIGHT)
     
     # Technical attributes (0-100 scale)
@@ -105,13 +110,13 @@ class Player(Base):
     potential_ability: Mapped[int] = mapped_column(Integer, default=50)
     
     # Contract info
-    club_id: Mapped[int | None] = mapped_column(
+    club_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("clubs.id"), nullable=True
     )
-    contract_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+    contract_until: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     salary: Mapped[int] = mapped_column(Integer, default=0)  # Weekly wage
     market_value: Mapped[int] = mapped_column(Integer, default=0)
-    release_clause: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    release_clause: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     
     # Status
     fitness: Mapped[int] = mapped_column(Integer, default=100)  # 0-100
@@ -139,7 +144,7 @@ class Player(Base):
         return f"{self.first_name} {self.last_name}"
     
     @property
-    def age(self) -> int | None:
+    def age(self) -> Optional[int]:
         """Calculate player age from birth date."""
         if self.birth_date is None:
             return None
@@ -149,27 +154,18 @@ class Player(Base):
         )
     
     @property
-    def outfield_attributes(self) -> dict[str, int]:
-        """Get outfield player attributes."""
+    def outfield_attributes(self) -> Dict[str, int]:
+        """Get outfield player attributes as dict."""
         return {
             "pace": self.pace,
-            "acceleration": self.acceleration,
-            "stamina": self.stamina,
-            "strength": self.strength,
             "shooting": self.shooting,
             "passing": self.passing,
             "dribbling": self.dribbling,
             "crossing": self.crossing,
-            "first_touch": self.first_touch,
-            "tackling": self.tackling,
-            "marking": self.marking,
-            "positioning": self.positioning,
-            "vision": self.vision,
-            "decisions": self.decisions,
         }
     
     @property
-    def goalkeeper_attributes(self) -> dict[str, int]:
+    def goalkeeper_attributes(self) -> Dict[str, int]:
         """Get goalkeeper attributes."""
         return {
             "reflexes": self.reflexes,
