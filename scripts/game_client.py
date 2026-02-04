@@ -121,8 +121,9 @@ class GameClient:
             print("  7. Advance to Next Match")
             print("  8. Save Game")
             print("  9. Main Menu")
+            print("  0. Exit Game")
 
-            choice = input("\nChoice (1-9): ").strip()
+            choice = input("\nChoice (0-9): ").strip()
 
             if choice == "1":
                 await self.manage_squad()
@@ -141,6 +142,9 @@ class GameClient:
             elif choice == "8":
                 await self.save_game()
             elif choice == "9":
+                break
+            elif choice == "0":
+                await self.quit_game()
                 break
             else:
                 print(f"{Fore.RED}Invalid choice{Style.RESET_ALL}")
@@ -174,12 +178,15 @@ class GameClient:
         players = getattr(self.current_club, "players", [])
 
         print(f"{Fore.GREEN}Squad ({len(players)} players):{Style.RESET_ALL}\n")
-        print(f"{'Name':<25} {'Pos':<6} {'Age':<4} {'CA':<4} {'PA':<4} {'Form':<6} {'Fitness':<8}")
-        print("-" * 70)
+        print(
+            f"{'#':<4} {'Name':<25} {'Pos':<6} {'Age':<4} {'CA':<4} {'PA':<4} {'Form':<6} {'Fitness':<8}"
+        )
+        print("-" * 75)
 
-        for player in sorted(players, key=lambda p: getattr(p, "current_ability", 0), reverse=True)[
-            :25
-        ]:
+        sorted_players = sorted(
+            players, key=lambda p: getattr(p, "current_ability", 0), reverse=True
+        )[:25]
+        for i, player in enumerate(sorted_players, 1):
             form_str = (
                 "★" * (getattr(player, "form", 0) // 20) if getattr(player, "form", 0) else "-"
             )
@@ -196,12 +203,83 @@ class GameClient:
                 position_str = "-"
 
             print(
-                f"{getattr(player, 'full_name', 'Unknown'):<25} {position_str:<6} "
+                f"{i:<4} {getattr(player, 'full_name', 'Unknown')[:24]:<25} {position_str:<6} "
                 f"{getattr(player, 'age', '-'):<4} {getattr(player, 'current_ability', '-'):<4} "
                 f"{getattr(player, 'potential_ability', '-'):<4} "
                 f"{form_str:<6} {fitness_str:<8}"
             )
 
+        print(f"\n{Fore.YELLOW}Options:{Style.RESET_ALL}")
+        print("  1. View Player Details")
+        print("  0. Back to Dashboard")
+
+        choice = input("\nChoice (0-1): ").strip()
+
+        if choice == "1":
+            try:
+                player_idx = int(input("Enter player number to view details: ").strip()) - 1
+                if 0 <= player_idx < len(sorted_players):
+                    await self.view_player_detail(sorted_players[player_idx])
+                else:
+                    print(f"{Fore.RED}Invalid player number{Style.RESET_ALL}")
+                    input("\nPress Enter to continue...")
+            except ValueError:
+                print(f"{Fore.RED}Invalid input{Style.RESET_ALL}")
+                input("\nPress Enter to continue...")
+
+    async def view_player_detail(self, player):
+        """View detailed player information."""
+        print(f"\n{Fore.CYAN}{'=' * 80}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{getattr(player, 'full_name', 'Unknown'):^80}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'=' * 80}{Style.RESET_ALL}\n")
+
+        # Basic Info
+        print(f"{Fore.GREEN}Basic Information:{Style.RESET_ALL}")
+        position = getattr(player, "position", "-")
+        pos_str = position if isinstance(position, str) else getattr(position, "value", "-")
+        print(f"  Position: {pos_str}")
+        print(f"  Age: {getattr(player, 'age', '-')}")
+        print(f"  Nationality: {getattr(player, 'nationality', '-')}")
+        print(f"  Club: {getattr(self.current_club, 'name', '-')}")
+
+        # Abilities
+        print(f"\n{Fore.GREEN}Abilities:{Style.RESET_ALL}")
+        ca = getattr(player, "current_ability", 0)
+        pa = getattr(player, "potential_ability", 0)
+        print(f"  Current Ability (CA): {ca}")
+        print(f"  Potential Ability (PA): {pa}")
+
+        # Contract Info
+        print(f"\n{Fore.GREEN}Contract & Value:{Style.RESET_ALL}")
+        market_value = getattr(player, "market_value", 0)
+        weekly_wage = getattr(player, "weekly_wage", 0)
+        print(f"  Market Value: £{market_value:,.0f}")
+        print(f"  Weekly Wage: £{weekly_wage:,.0f}")
+
+        # Status
+        print(f"\n{Fore.GREEN}Status:{Style.RESET_ALL}")
+        fatigue = getattr(player, "fatigue", 0)
+        stamina = getattr(player, "stamina", 0)
+        match_shape = getattr(player, "match_shape", 0)
+        happiness = getattr(player, "happiness", 0)
+        print(f"  Fatigue: {fatigue}%")
+        print(f"  Stamina: {stamina}%")
+        print(f"  Match Shape: {match_shape}%")
+        print(f"  Happiness: {happiness}%")
+
+        # Position Ratings (if available)
+        print(f"\n{Fore.GREEN}Position Ratings:{Style.RESET_ALL}")
+        pos_ratings = getattr(player, "position_ratings", None)
+        if pos_ratings:
+            if isinstance(pos_ratings, dict):
+                for pos, rating in pos_ratings.items():
+                    print(f"  {pos}: {rating}")
+            else:
+                print(f"  {pos_ratings}")
+        else:
+            print(f"  {Fore.YELLOW}Position ratings not available{Style.RESET_ALL}")
+
+        print(f"\n{Fore.CYAN}{'=' * 80}{Style.RESET_ALL}")
         input("\nPress Enter to continue...")
 
     async def manage_tactics(self):
@@ -351,7 +429,7 @@ class GameClient:
             age = getattr(player, "age", "-")
             ca = getattr(player, "current_ability", "-")
             pa = getattr(player, "potential_ability", "-")
-            value = getattr(player, "value", 0) or getattr(player, "estimated_value", 1000000)
+            value = getattr(player, "market_value", 0)
 
             # Find club name
             club_name = "Unknown"
@@ -380,7 +458,7 @@ class GameClient:
         player_name = getattr(player, "full_name", "Unknown")
         print(f"Player: {Fore.GREEN}{player_name}{Style.RESET_ALL}")
 
-        current_value = getattr(player, "value", 0) or getattr(player, "estimated_value", 1000000)
+        current_value = getattr(player, "market_value", 0)
         print(f"Estimated Value: £{current_value:,.0f}")
 
         print(f"\n{Fore.YELLOW}Offer Type:{Style.RESET_ALL}")
@@ -463,7 +541,7 @@ class GameClient:
             pos_str = pos if isinstance(pos, str) else getattr(pos, "value", "-")
             age = getattr(player, "age", "-")
             ca = getattr(player, "current_ability", "-")
-            value = getattr(player, "value", 0) or getattr(player, "estimated_value", 1000000)
+            value = getattr(player, "market_value", 0)
             status = "For Sale" if getattr(player, "is_listed", False) else "Not Listed"
 
             print(
@@ -599,6 +677,23 @@ class GameClient:
         )
 
         input("\nPress Enter to continue...")
+
+    async def quit_game(self):
+        """Quit the game with confirmation."""
+        print(f"\n{Fore.YELLOW}Are you sure you want to exit?{Style.RESET_ALL}")
+        print("  1. Save and Exit")
+        print("  2. Exit without Saving")
+        print("  3. Cancel")
+
+        choice = input("\nChoice (1-3): ").strip()
+
+        if choice == "1":
+            await self.save_game()
+            print(f"\n{Fore.GREEN}Thanks for playing FM Manager!{Style.RESET_ALL}\n")
+        elif choice == "2":
+            print(f"\n{Fore.GREEN}Thanks for playing FM Manager!{Style.RESET_ALL}\n")
+        elif choice == "3":
+            print(f"\n{Fore.CYAN}Returning to game...{Style.RESET_ALL}")
 
     async def save_game(self):
         """Save current game."""
