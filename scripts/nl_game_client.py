@@ -1,6 +1,7 @@
 """Enhanced Natural Language Game Interface for FM Manager.
 
 Uses Tool-Calling Architecture with LLM for flexible, natural interactions.
+Integrates Calendar system for season progression and match simulation.
 """
 
 import asyncio
@@ -21,10 +22,13 @@ from prompt_toolkit.formatted_text import HTML
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+from rich.table import Table
 
 from fm_manager.ai.llm_tool_interface import get_llm_tool_interface
 from fm_manager.data.cleaned_data_loader import load_for_match_engine, ClubDataFull
 from fm_manager.engine.llm_client import LLMClient, LLMProvider
+from fm_manager.engine.calendar import Calendar, create_league_calendar, Match
+from fm_manager.engine.match_engine_markov import MarkovMatchEngine, MatchState, MatchEvent
 
 
 class FMManagerCompleter(WordCompleter):
@@ -116,14 +120,14 @@ class FMManagerCompleter(WordCompleter):
 
 
 class EnhancedNLGameInterface:
-    """Enhanced chat-style natural language interface with Tool Calling."""
+    """Enhanced chat-style natural language interface with Tool Calling and Calendar."""
 
     def __init__(self):
         """Initialize the enhanced NL game interface."""
         self.console = Console()
         self.session = self._create_prompt_session()
 
-        # NEW: Use LLM Tool Interface instead of IntentParser + CommandExecutor
+        # LLM Tool Interface
         self.tool_interface = None
 
         # Game state
@@ -132,6 +136,11 @@ class EnhancedNLGameInterface:
         self.current_week = 1
         self.in_game_date = date(2024, 8, 1)
         self.running = False
+
+        # Calendar and Match Engine
+        self.calendar: Optional[Calendar] = None
+        self.match_engine = MarkovMatchEngine()
+        self.all_clubs: dict = {}
 
         # Detect locale
         self.locale = self._detect_locale()
@@ -280,6 +289,12 @@ class EnhancedNLGameInterface:
   • "Compare Son and Kane"
   • "Save game"
   
+  Quick Commands:
+  • "calendar" / "fixtures" - View season schedule
+  • "table" / "standings" - View league table
+  • "next" / "advance" - Play next week
+  • "skip" - Simulate rest of season
+  
   • "找英格兰中场球员，23岁以下，潜力高"
   • "查看我的阵容按身价排序"
   • "保存游戏"""
@@ -295,15 +310,15 @@ class EnhancedNLGameInterface:
         self.console.print(f"\n[bold cyan]{self._t('loading')}...[/bold cyan]\n")
 
         with self.console.status("[bold green]Loading clubs...[/bold green]", spinner="dots"):
-            clubs, _ = load_for_match_engine()
+            self.all_clubs, _ = load_for_match_engine()
 
         major_leagues = [
             "England Premier League",
-            "Spain La Liga",
-            "Germany Bundesliga",
+            "Spain LaLiga SmartBank",
+            "Bundesliga",
             "Italy Serie A",
         ]
-        available_clubs = [c for c in clubs.values() if c.league in major_leagues]
+        available_clubs = [c for c in self.all_clubs.values() if c.league in major_leagues]
 
         self.console.print(f"[bold green]Select a club to manage:[/bold green]\n")
 
@@ -324,7 +339,7 @@ class EnhancedNLGameInterface:
                 else:
                     self.console.print("[red]Invalid selection[/red]")
             else:
-                matches = [c for c in clubs.values() if choice.lower() in c.name.lower()]
+                matches = [c for c in self.all_clubs.values() if choice.lower() in c.name.lower()]
                 if matches:
                     if len(matches) == 1:
                         self.current_club = matches[0]
@@ -342,9 +357,13 @@ class EnhancedNLGameInterface:
                 else:
                     self.console.print(f"[red]No clubs found[/red]")
 
-        # Set club context for tool interface
+        # Set club and calendar context for tool interface
         if self.tool_interface:
             self.tool_interface.set_club(self.current_club)
+            self.tool_interface.set_calendar(self.calendar)
+
+        # Initialize calendar for the league
+        await self._init_calendar()
 
         budget = getattr(self.current_club, "balance", 0) or getattr(
             self.current_club, "transfer_budget", 0
@@ -353,10 +372,240 @@ class EnhancedNLGameInterface:
         welcome_msg = (
             f"[bold green]✓ Welcome to {self.current_club.name}![/bold green]\n"
             f"  League: {self.current_club.league}\n"
-            f"  Budget: £{budget:,.0f}"
+            f"  Budget: £{budget:,.0f}\n"
+            f"  Season: 2024-25 ({len(self.calendar.matches)} matches)"
         )
         self.console.print(Panel(welcome_msg, border_style="green"))
         self.console.print()
+
+    async def _init_calendar(self):
+        """Initialize calendar for current club's league."""
+        # Get all clubs in the same league
+        league_clubs = [c for c in self.all_clubs.values() if c.league == self.current_club.league]
+
+        if len(league_clubs) < 2:
+            # Fallback: create mini league
+            league_clubs = [self.current_club, list(self.all_clubs.values())[0]]
+
+        team_names = [c.name for c in league_clubs[:20]]
+
+        self.calendar = create_league_calendar(self.current_club.league, team_names, 2024)
+
+        self.in_game_date = self.calendar._get_match_date(1)
+
+    def get_user_matches(self) -> list[Match]:
+        """Get matches involving user's club for current week."""
+        if not self.calendar:
+            return []
+        return [
+            m
+            for m in self.calendar.get_current_matches()
+            if m.home_team == self.current_club.name or m.away_team == self.current_club.name
+        ]
+
+    def show_calendar(self):
+        """Display season calendar."""
+        if not self.calendar:
+            self.console.print("[red]Calendar not initialized[/red]")
+            return
+
+        # Show current week info
+        week = self.calendar.current_week
+        match_date = self.calendar._get_match_date(week)
+
+        self.console.print(f"\n[bold cyan]📅 Season Calendar - Week {week}[/bold cyan]")
+        self.console.print(f"[dim]Match Date: {match_date.strftime('%B %d, %Y')}[/dim]\n")
+
+        # Show user's upcoming match
+        user_matches = self.get_user_matches()
+        if user_matches:
+            match = user_matches[0]
+            venue = "🏟️ Home" if match.home_team == self.current_club.name else "✈️ Away"
+            opponent = (
+                match.away_team if match.home_team == self.current_club.name else match.home_team
+            )
+            self.console.print(
+                f"[bold green]Next Match:[/bold green] {self.current_club.name} vs {opponent} ({venue})"
+            )
+        else:
+            self.console.print("[yellow]No match this week[/yellow]")
+
+        # Show upcoming fixtures (next 5 weeks)
+        self.console.print(f"\n[bold]Upcoming Fixtures:[/bold]")
+        for w in range(week, min(week + 5, max(m.week for m in self.calendar.matches) + 1)):
+            week_matches = [m for m in self.calendar.matches if m.week == w]
+            user_match = next(
+                (
+                    m
+                    for m in week_matches
+                    if m.home_team == self.current_club.name
+                    or m.away_team == self.current_club.name
+                ),
+                None,
+            )
+            if user_match:
+                date_str = self.calendar._get_match_date(w).strftime("%b %d")
+                if user_match.home_team == self.current_club.name:
+                    self.console.print(f"  Week {w} ({date_str}): vs {user_match.away_team} (H)")
+                else:
+                    self.console.print(f"  Week {w} ({date_str}): @ {user_match.home_team} (A)")
+
+        # Show season progress
+        played, total = self.calendar.get_season_progress()
+        progress_pct = (played / total * 100) if total > 0 else 0
+        self.console.print(
+            f"\n[dim]Season Progress: {played}/{total} matches played ({progress_pct:.1f}%)[/dim]"
+        )
+
+    def show_standings(self):
+        """Display league standings table."""
+        if not self.calendar:
+            self.console.print("[red]Calendar not initialized[/red]")
+            return
+
+        standings = self.calendar.get_standings()
+
+        # Sort by points, then goal difference
+        sorted_teams = sorted(
+            standings.items(), key=lambda x: (x[1]["points"], x[1]["gd"]), reverse=True
+        )
+
+        table = Table(title=f"📊 {self.current_club.league} Table")
+        table.add_column("Pos", justify="right", style="cyan", width=4)
+        table.add_column("Team", style="white", width=25)
+        table.add_column("P", justify="center", width=3)
+        table.add_column("W", justify="center", width=3)
+        table.add_column("D", justify="center", width=3)
+        table.add_column("L", justify="center", width=3)
+        table.add_column("GF", justify="center", width=3)
+        table.add_column("GA", justify="center", width=3)
+        table.add_column("GD", justify="center", width=4)
+        table.add_column("Pts", justify="center", style="bold green", width=4)
+
+        for pos, (team, stats) in enumerate(sorted_teams, 1):
+            style = "bold yellow" if team == self.current_club.name else None
+            marker = "👤 " if team == self.current_club.name else ""
+            table.add_row(
+                str(pos),
+                marker + team,
+                str(stats["played"]),
+                str(stats["won"]),
+                str(stats["drawn"]),
+                str(stats["lost"]),
+                str(stats["gf"]),
+                str(stats["ga"]),
+                f"{stats['gd']:+d}",
+                str(stats["points"]),
+                style=style,
+            )
+
+        self.console.print(table)
+
+    async def simulate_week(self) -> bool:
+        """Simulate current week and advance. Returns False if season ended."""
+        if not self.calendar:
+            self.console.print("[red]Calendar not initialized[/red]")
+            return False
+
+        week = self.calendar.current_week
+        match_date = self.calendar._get_match_date(week)
+
+        self.console.print(f"\n[bold cyan]{'=' * 70}[/bold cyan]")
+        self.console.print(
+            f"[bold cyan]📅 WEEK {week} - {match_date.strftime('%B %d, %Y')}[/bold cyan]"
+        )
+        self.console.print(f"[bold cyan]{'=' * 70}[/bold cyan]")
+
+        # Show user's upcoming match
+        user_matches = self.get_user_matches()
+        if user_matches:
+            match = user_matches[0]
+            if match.home_team == self.current_club.name:
+                self.console.print(f"🏟️  Upcoming: {match.home_team} vs {match.away_team} (Home)")
+            else:
+                self.console.print(f"✈️  Upcoming: {match.away_team} vs {match.home_team} (Away)")
+
+        # Simulate all matches for the week
+        results = []
+        for match in self.calendar.get_current_matches():
+            # Find club data for both teams
+            home_club = next(
+                (c for c in self.all_clubs.values() if c.name == match.home_team), None
+            )
+            away_club = next(
+                (c for c in self.all_clubs.values() if c.name == match.away_team), None
+            )
+
+            if home_club and away_club:
+                # Use Markov engine for realistic simulation
+                state = MatchState(home_club, away_club)
+                result = self.match_engine.simulate(state)
+                match.play(result.home_goals, result.away_goals)
+            else:
+                # Fallback to simple random
+                import random
+
+                home_goals = random.randint(0, 4)
+                away_goals = random.randint(0, 3)
+                match.play(home_goals, away_goals)
+
+            results.append(
+                {
+                    "home": match.home_team,
+                    "away": match.away_team,
+                    "score": f"{match.home_goals}-{match.away_goals}",
+                    "is_user_team": (
+                        match.home_team == self.current_club.name
+                        or match.away_team == self.current_club.name
+                    ),
+                }
+            )
+
+        # Show results
+        self.console.print(f"\n[bold]📋 MATCH RESULTS:[/bold]")
+        self.console.print("-" * 50)
+        for result in results:
+            marker = " 👤" if result["is_user_team"] else ""
+            self.console.print(
+                f"  {result['home']} [bold]{result['score']}[/bold] {result['away']}{marker}"
+            )
+
+        # Show updated standings
+        self.show_standings()
+
+        # Advance to next week
+        has_more = self.calendar.advance_week()
+
+        if not has_more:
+            self.console.print(f"\n[bold green]{'=' * 70}[/bold green]")
+            self.console.print("[bold green]🏆 SEASON COMPLETE![/bold green]")
+            self.console.print(f"[bold green]{'=' * 70}[/bold green]")
+            self._show_final_standings()
+            return False
+
+        return True
+
+    def _show_final_standings(self):
+        """Show final season standings."""
+        standings = self.calendar.get_standings()
+        sorted_teams = sorted(
+            standings.items(), key=lambda x: (x[1]["points"], x[1]["gd"]), reverse=True
+        )
+
+        # Find user's position
+        user_pos = None
+        for pos, (team, _) in enumerate(sorted_teams, 1):
+            if team == self.current_club.name:
+                user_pos = pos
+                break
+
+        self.console.print(f"\n[bold]Final Position: {user_pos}/{len(sorted_teams)}[/bold]")
+
+        # Show top 5
+        self.console.print("\n[bold]Top 5:[/bold]")
+        for pos, (team, stats) in enumerate(sorted_teams[:5], 1):
+            marker = " 👤" if team == self.current_club.name else ""
+            self.console.print(f"  {pos}. {team}{marker} - {stats['points']}pts")
 
     async def _prompt_async(self, message: str) -> str:
         """Async wrapper for prompt."""
@@ -407,16 +656,52 @@ class EnhancedNLGameInterface:
             self.console.print("[red]Error: AI interface not initialized[/red]")
             return
 
+        # Handle direct calendar/season commands
+        cmd = user_input.lower().strip()
+
+        if cmd in ["calendar", "fixtures", "schedule", "赛程", "日历"]:
+            self.show_calendar()
+            return
+
+        if cmd in ["table", "standings", "league table", "积分榜", "排名"]:
+            self.show_standings()
+            return
+
+        if cmd in ["next", "advance", "play week", "simulate", "下周", "继续"]:
+            await self.simulate_week()
+            return
+
+        if cmd in ["skip", "simulate season", "跳过赛季"]:
+            await self._simulate_rest_of_season()
+            return
+
         with self.console.status(
             f"[bold cyan]{self._t('ai_thinking')}[/bold cyan]", spinner="dots"
         ):
-            # NEW: Use LLM tool interface for flexible query handling
             response = await self.tool_interface.process_query(user_input)
 
-        # Display LLM-generated response
         self.console.print(f"[bold cyan]{self._t('ai_assistant')}:[/bold cyan]")
         self.console.print(response)
         self.console.print()
+
+    async def _simulate_rest_of_season(self):
+        """Simulate remaining matches of the season."""
+        if not self.calendar:
+            self.console.print("[red]Calendar not initialized[/red]")
+            return
+
+        self.console.print("\n[yellow]⚡ Fast-forwarding through remaining season...[/yellow]\n")
+
+        week_count = 0
+        while True:
+            has_more = await self.simulate_week()
+            week_count += 1
+            if not has_more:
+                break
+            # Brief pause between weeks for readability
+            await asyncio.sleep(0.3)
+
+        self.console.print(f"\n[green]✓ Season complete! Simulated {week_count} weeks.[/green]")
 
     async def _handle_exit(self):
         """Handle game exit."""

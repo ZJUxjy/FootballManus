@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from fm_manager.engine.llm_client import LLMClient, LLMProvider
 from fm_manager.ai.tools.tool_registry import get_tool_registry
-from fm_manager.ai.tools.tool_implementations import set_current_club
+from fm_manager.ai.tools.tool_implementations import set_current_club, set_current_calendar
 from fm_manager.data.cleaned_data_loader import ClubDataFull
 
 
@@ -48,6 +48,10 @@ class LLMToolInterface:
         """Set the current club context."""
         self.current_club = club
         set_current_club(club)
+
+    def set_calendar(self, calendar):
+        """Set the current calendar context."""
+        set_current_calendar(calendar)
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt with tool descriptions."""

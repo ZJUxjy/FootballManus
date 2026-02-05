@@ -20,11 +20,17 @@ from sqlalchemy import select, update, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fm_manager.core.models import (
-    Club, League, Match, MatchStatus, Season,
-    Player, Transfer, TransferStatus
+    Club,
+    League,
+    Match,
+    MatchStatus,
+    Season,
+    Player,
+    Transfer,
+    TransferStatus,
 )
 from fm_manager.core.database import get_db_session
-from fm_manager.engine.match_engine_markov_v2 import EnhancedMarkovEngine
+from fm_manager.engine.match_engine_markov import EnhancedMarkovEngine
 from fm_manager.engine.team_state import TeamStateManager
 from fm_manager.engine.finance_engine import FinanceEngine
 from fm_manager.engine.transfer_engine_enhanced import EnhancedTransferEngine
@@ -32,21 +38,24 @@ from fm_manager.engine.transfer_engine_enhanced import EnhancedTransferEngine
 
 class CompetitionType(Enum):
     """Types of competitions."""
-    LEAGUE = "league"           # Domestic league
+
+    LEAGUE = "league"  # Domestic league
     CHAMPIONS_LEAGUE = "cl"  # Champions League
     EUROPA_LEAGUE = "el"  # Europa League
-    DOMESTIC_CUP = "cup"    # FA Cup, DFB-Pokal, etc.
+    DOMESTIC_CUP = "cup"  # FA Cup, DFB-Pokal, etc.
 
 
 class PlayoffType(Enum):
     """Playoff match types."""
-    TWO_LEG = "two_leg"       # Home and away
-    ONE_OFF = "one_off"       # Single match (for final)
+
+    TWO_LEG = "two_leg"  # Home and away
+    ONE_OFF = "one_off"  # Single match (for final)
 
 
 @dataclass
 class EuropeanFixture:
     """European competition fixture."""
+
     competition_type: CompetitionType
     season_year: int
 
@@ -71,6 +80,7 @@ class EuropeanFixture:
 @dataclass
 class LeagueStandings:
     """Current league standings with tie-breakers."""
+
     club_id: int
     club_name: str
 
@@ -102,6 +112,7 @@ class LeagueStandings:
 @dataclass
 class SeasonProgress:
     """Track progress through a season."""
+
     current_date: date
     current_matchday: int = 1
     total_matchdays: int = 38
@@ -117,6 +128,7 @@ class SeasonProgress:
 @dataclass
 class PromotionRelegation:
     """Track promotion and relegation rules."""
+
     # Promotion spots (top teams qualify for higher division)
     promotion_spots: int = 3
 
@@ -188,9 +200,7 @@ class ComprehensiveSeasonSimulator:
                     self.standings[league.id] = {}
 
                     # Get clubs
-                    result = await session.execute(
-                        select(Club).where(Club.league_id == league.id)
-                    )
+                    result = await session.execute(select(Club).where(Club.league_id == league.id))
                     clubs = list(result.scalars().all())
 
                     # Initialize standings
@@ -377,17 +387,19 @@ class ComprehensiveSeasonSimulator:
         """Update head-to-head record."""
         # Find existing H2H record
         for record in self.european_fixtures:
-            if (record.home_club_id == home_standings.club_id and
-                record.away_club_id == away_standings.club_id):
+            if (
+                record.home_club_id == home_standings.club_id
+                and record.away_club_id == away_standings.club_id
+            ):
                 if record.home_away is not None:
                     record.home_away = 0
                 break
 
         # Update H2H
         if home_standings.home_away is not None:
-            home_standings.home_away += (home_standings.goals_for - home_standings.goals_against)
+            home_standings.home_away += home_standings.goals_for - home_standings.goals_against
         if away_standings.home_away is not None:
-            away_standings.home_away = (away_standings.goals_for - away_standings.goals_against)
+            away_standings.home_away = away_standings.goals_for - away_standings.goals_against
 
     async def _get_club_players(
         self,
@@ -395,9 +407,7 @@ class ComprehensiveSeasonSimulator:
         session: AsyncSession,
     ) -> List[Player]:
         """Get players for a club with state management."""
-        result = await session.execute(
-            select(Player).where(Player.club_id == club_id)
-        )
+        result = await session.execute(select(Player).where(Player.club_id == club_id))
         players = list(result.scalars().all())
         return players
 
@@ -416,9 +426,7 @@ class ComprehensiveSeasonSimulator:
         """Generate double round-robin fixtures."""
         # Get clubs
         async with get_db_session() as session:
-            result = await session.execute(
-                select(Club).where(Club.league_id == league.id)
-            )
+            result = await session.execute(select(Club).where(Club.league_id == league.id))
             clubs = list(result.scalars().all())
 
         if len(clubs) < 2:
@@ -473,8 +481,7 @@ class ComprehensiveSeasonSimulator:
         # Get clubs
         async with get_db_session() as get_session:
             result = await get_session.execute(
-                select(Club).where(Club.league_id == league.id)
-                    .order_by(Club.reputation.desc())
+                select(Club).where(Club.league_id == league.id).order_by(Club.reputation.desc())
             )
             clubs = list(result.scalars().all())
 
@@ -516,8 +523,7 @@ class ComprehensiveSeasonSimulator:
                 if home_club and match.home_club_id == match.home_club_id:
                     club_finances = await self._load_club_finances(home_club.id, session)
                     self.finance_engine.process_matchday(
-                        club_finances, home_club, is_home=True,
-                        match_importance="normal"
+                        club_finances, home_club, is_home=True, match_importance="normal"
                     )
                     self._save_club_finances(club_finances, session)
 
@@ -526,8 +532,7 @@ class ComprehensiveSeasonSimulator:
                 if away_club and match.away_club_id == match.away_club_id:
                     club_finances = await self._load_club_finances(away_club.id, session)
                     self.finance_engine.process_matchday(
-                        club_finances, away_club, is_home=False,
-                        match_importance="normal"
+                        club_finances, away_club, is_home=False, match_importance="normal"
                     )
                     self._save_club_finances(club_finances, session)
 
@@ -549,9 +554,7 @@ class ComprehensiveSeasonSimulator:
             wage_budget: int = 0
 
         # Try to get existing or create default
-        result = await session.execute(
-            select(Club).where(Club.id == club_id)
-        )
+        result = await session.execute(select(Club).where(Club.id == club_id))
         club = result.scalars().first()
 
         if club:
@@ -583,8 +586,7 @@ class ComprehensiveSeasonSimulator:
 
             # Sort by: points, goal difference, goals for
             standings_list.sort(
-                key=lambda x: (x.points, x.goal_difference, x.goals_for),
-                reverse=True
+                key=lambda x: (x.points, x.goal_difference, x.goals_for), reverse=True
             )
 
             # Process promotion/relegation
@@ -623,7 +625,10 @@ class ComprehensiveSeasonSimulator:
                     continue  # Already correct
                 elif current.goal_difference < next_team.goal_difference:
                     # Swap
-                    standings_list[i], standings_list[i + 1] = standings_list[i + 1], standings_list[i]
+                    standings_list[i], standings_list[i + 1] = (
+                        standings_list[i + 1],
+                        standings_list[i],
+                    )
                     continue
                 # Tie-breaker 2: Head-to-head
                 # Find their H2H
@@ -633,13 +638,19 @@ class ComprehensiveSeasonSimulator:
                 if h2h_home > h2h_away:
                     continue  # Home team has better H2H
                 elif h2h_home < h2h_away:
-                    standings_list[i], standings_list[i + 1] = standings_list[i + 1], standings_list[i]
+                    standings_list[i], standings_list[i + 1] = (
+                        standings_list[i + 1],
+                        standings_list[i],
+                    )
                     continue
                 # Tie-breaker 3: Goals for
                 if current.goals_for > next_team.goals_for:
                     continue
                 elif current.goals_for < next_team.goals_for:
-                    standings_list[i], standings_list[i + 1] = standings_list[i + 1], standings_list[i]
+                    standings_list[i], standings_list[i + 1] = (
+                        standings_list[i + 1],
+                        standings_list[i],
+                    )
                     continue
                 # Tie-breaker 4: Play-off (if applicable)
                 # Would need additional data

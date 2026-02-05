@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fm_manager.data.cleaned_data_loader import load_for_match_engine
 from fm_manager.engine.match_engine_adapter import ClubSquadBuilder
-from fm_manager.engine.match_engine_markov_v2 import EnhancedMarkovEngine as MarkovMatchEngine
+from fm_manager.engine.match_engine_markov import EnhancedMarkovEngine as MarkovMatchEngine
 from fm_manager.engine.cup_competition_engine import (
     CupDrawGenerator,
     CupPrizeCalculator,

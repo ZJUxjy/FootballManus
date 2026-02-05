@@ -20,12 +20,19 @@ from fm_manager.data.cleaned_data_loader import load_for_match_engine, ClubDataF
 
 # Current club context (set by the game interface)
 _current_club: Optional[ClubDataFull] = None
+_current_calendar = None
 
 
 def set_current_club(club: Optional[ClubDataFull]):
     """Set the current club context for tools."""
     global _current_club
     _current_club = club
+
+
+def set_current_calendar(calendar):
+    """Set the current calendar context for tools."""
+    global _current_calendar
+    _current_calendar = calendar
 
 
 def search_players_tool(
@@ -396,54 +403,78 @@ def view_fixtures_tool(
     if not _current_club:
         return {"error": "No club selected"}
 
-    # Placeholder fixtures (in real implementation, would query database)
     fixtures = []
 
-    if view_type in ["upcoming", "all"]:
-        fixtures.extend(
-            [
-                {
-                    "week": 15,
-                    "opponent": "Arsenal",
-                    "venue": "Home",
-                    "competition": "Premier League",
-                },
-                {
-                    "week": 16,
-                    "opponent": "Chelsea",
-                    "venue": "Away",
-                    "competition": "Premier League",
-                },
-                {
-                    "week": 17,
-                    "opponent": "Liverpool",
-                    "venue": "Home",
-                    "competition": "Premier League",
-                },
-                {
-                    "week": 18,
-                    "opponent": "Man City",
-                    "venue": "Away",
-                    "competition": "Premier League",
-                },
-            ]
-        )
+    if _current_calendar:
+        current_week = _current_calendar.current_week
 
-    if view_type in ["results", "all"]:
-        fixtures.extend(
-            [
-                {"week": 14, "opponent": "Tottenham", "result": "2-1 Win", "venue": "Home"},
-                {"week": 13, "opponent": "Everton", "result": "0-0 Draw", "venue": "Away"},
-                {"week": 12, "opponent": "Brighton", "result": "3-2 Win", "venue": "Home"},
+        if view_type in ["upcoming", "all"]:
+            # Get future matches for user's team
+            team_matches = [
+                m
+                for m in _current_calendar.matches
+                if (m.home_team == _current_club.name or m.away_team == _current_club.name)
+                and m.week >= current_week
+                and not m.played
             ]
-        )
 
-    return {
-        "club": _current_club.name,
-        "view_type": view_type,
-        "fixtures": fixtures[:limit],
-        "current_week": 15,
-    }
+            for match in sorted(team_matches, key=lambda m: m.week)[:limit]:
+                is_home = match.home_team == _current_club.name
+                fixtures.append(
+                    {
+                        "week": match.week,
+                        "date": match.match_date.strftime("%b %d"),
+                        "opponent": match.away_team if is_home else match.home_team,
+                        "venue": "Home" if is_home else "Away",
+                        "competition": _current_calendar.league_name,
+                    }
+                )
+
+        if view_type in ["results", "all"]:
+            # Get played matches
+            team_matches = [
+                m
+                for m in _current_calendar.matches
+                if (m.home_team == _current_club.name or m.away_team == _current_club.name)
+                and m.played
+            ]
+
+            for match in sorted(team_matches, key=lambda m: m.week, reverse=True)[:limit]:
+                is_home = match.home_team == _current_club.name
+                our_goals = match.home_goals if is_home else match.away_goals
+                their_goals = match.away_goals if is_home else match.home_goals
+
+                if our_goals > their_goals:
+                    result_str = f"{our_goals}-{their_goals} Win"
+                elif our_goals < their_goals:
+                    result_str = f"{our_goals}-{their_goals} Loss"
+                else:
+                    result_str = f"{our_goals}-{their_goals} Draw"
+
+                fixtures.append(
+                    {
+                        "week": match.week,
+                        "opponent": match.away_team if is_home else match.home_team,
+                        "result": result_str,
+                        "venue": "Home" if is_home else "Away",
+                    }
+                )
+
+        return {
+            "club": _current_club.name,
+            "view_type": view_type,
+            "fixtures": fixtures,
+            "current_week": current_week,
+        }
+    else:
+        # Fallback when no calendar is available
+        return {
+            "club": _current_club.name,
+            "view_type": view_type,
+            "fixtures": [],
+            "current_week": 1,
+            "message": "Calendar not initialized. Use 'calendar' or 'next' commands to start season.",
+        }
 
 
 def advance_match_tool(

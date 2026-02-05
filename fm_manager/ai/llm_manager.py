@@ -19,14 +19,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fm_manager.core.models import (
-    Club, Player, Match, League, Transfer,
-    TransferStatus, ContractOffer
-)
+from fm_manager.core.models import Club, Player, Match, League, Transfer, TransferStatus
 from fm_manager.core.database import get_db_session
 from fm_manager.engine.team_state import TeamStateManager, PlayerMatchState
-from fm_manager.engine.match_engine_markov_v2 import (
-    EnhancedMarkovEngine, TacticalFormation, MatchStage
+from fm_manager.engine.match_engine_markov import (
+    EnhancedMarkovEngine,
+    TacticalFormation,
+    MatchStage,
 )
 from fm_manager.engine.transfer_engine_enhanced import EnhancedTransferEngine, TransferNegotiation
 from fm_manager.engine.finance_engine import FinanceEngine
@@ -34,30 +33,35 @@ from fm_manager.engine.finance_engine import FinanceEngine
 
 class ManagerStyle(Enum):
     """Manager personality and tactical style."""
-    POSSESSION = "possession"     # Keep ball, short passes
-    COUNTER_ATTACK = "counter"    # Direct attacks, fast breaks
-    HIGH_PRESS = "pressing"      # Press high up the pitch
-    LOW_BLOCK = "low_block"       # Defend deep, counter
-    TIKI_TAKA = "tiki_taka"    # Short passes, retain possession
-    ROUT_ONE = "route_one"       # Long balls to targets
-    GEGENPRESSING = "gegenpressing" # Aggressive pressing
-    PARK_BUS = "park_bus"        # Park the bus
+
+    BALANCED = "balanced"
+    POSSESSION = "possession"  # Keep ball, short passes
+    COUNTER_ATTACK = "counter"  # Direct attacks, fast breaks
+    HIGH_PRESS = "pressing"  # Press high up the pitch
+    LOW_BLOCK = "low_block"  # Defend deep, counter
+    TIKI_TAKA = "tiki_taka"  # Short passes, retain possession
+    ROUT_ONE = "route_one"  # Long balls to targets
+    GEGENPRESSING = "gegenpressing"  # Aggressive pressing
+    PARK_BUS = "park_bus"  # Park the bus
 
 
 class ManagerPersonality(Enum):
     """Manager personality affecting decision making."""
+
+    BALANCED = "balanced"
     PRAGMATIC = "pragmatic"
     AMBITIOUS = "ambitious"
     ATTACKING = "attacking"
     DEFENSIVE = "defensive"
     YOUTH_FOCUS = "youth_focus"  # Prioritizes young players
     VETERAN = "veteran"  # Trusts experienced players
-    ROMANTIC = "romantic" # Plays attractive football
-    MERCENARY = "mercenary"   # Will buy/sell for profit
+    ROMANTIC = "romantic"  # Plays attractive football
+    MERCENARY = "mercenary"  # Will buy/sell for profit
 
 
 class TacticalDecision(Enum):
     """Tactical decision types."""
+
     FORMATION = "formation"
     STYLE_CHANGE = "style_change"
     SUBSTITUTION = "substitution"
@@ -67,6 +71,7 @@ class TacticalDecision(Enum):
 
 class TransferDecision(Enum):
     """Transfer-related decisions."""
+
     IDENTIFY_TARGET = "identify_target"
     MAKE_OFFER = "make_offer"
     ACCEPT_OFFER = "accept_offer"
@@ -80,6 +85,7 @@ class TransferDecision(Enum):
 @dataclass
 class ClubContext:
     """All relevant context about the club for LLM decisions."""
+
     club_id: int
     club_name: str
     reputation: int
@@ -121,6 +127,7 @@ class ClubContext:
 @dataclass
 class PlayerEvaluation:
     """AI's evaluation of a player."""
+
     player_id: int
     player_name: str
     position: str
@@ -128,11 +135,10 @@ class PlayerEvaluation:
     # Ability ratings
     current_ability: int
     potential_ability: int
-    form: int 0-100
+    form: int  # 0-100
 
     # Tactical fit
     positional_fit: str  # "perfect", "good", "acceptable", "poor"
-    team_fit: int = 50  # How well they fit the system
 
     # Role
     squad_role: str  # "starter", "rotation", "prospect", "deadwood"
@@ -147,11 +153,13 @@ class PlayerEvaluation:
 
     # Interest level
     selling_interest: bool = False
+    team_fit: int = 50  # How well they fit the system
 
 
 @dataclass
 class TacticalPlan:
     """Tactical plan for upcoming match."""
+
     formation: str  # e.g., "4-3-3", "4-2-3-1"
     style: ManagerStyle = ManagerStyle.BALANCED
     mentality: str = "balanced"  # "attacking", "balanced", "defensive"
@@ -169,12 +177,15 @@ class TacticalPlan:
 @dataclass
 class TransferStrategy:
     """Transfer strategy for the transfer window."""
-    budget_allocation: Dict[str, int] = field(default_factory=lambda: {
-        "attack": 50,
-        "midfield": 30,
-        "defense": 10,
-        "goalkeeper": 10,
-    })
+
+    budget_allocation: Dict[str, int] = field(
+        default_factory=lambda: {
+            "attack": 50,
+            "midfield": 30,
+            "defense": 10,
+            "goalkeeper": 10,
+        }
+    )
 
     # Priority positions based on squad needs
     priority_positions: List[str] = field(default_factory=list)
@@ -197,12 +208,15 @@ class TransferStrategy:
 
     # Timeline
     early_window_targets: int = 0  # Targets to complete early
-    deadline_day_moves: List[int] = []  # Which days to push harder for deals
+    deadline_day_moves: List[int] = field(
+        default_factory=list
+    )  # Which days to push harder for deals
 
 
 @dataclass
 class ManagerDecision:
     """A decision made by the AI manager."""
+
     timestamp: date
     decision_type: str
     category: str  # "tactical", "transfer", "squad", "financial"
@@ -267,10 +281,8 @@ class LLMManager:
 
         # Get squad
         from sqlalchemy import func
-        result = await session.execute(
-            select(Player)
-            .where(Player.club_id == self.club_id)
-        )
+
+        result = await session.execute(select(Player).where(Player.club_id == self.club_id))
         players = list(result.scalars().all())
 
         if not players:
@@ -286,9 +298,7 @@ class LLMManager:
 
         # Get star players (top 5 by ability)
         sorted_players = sorted(
-            [(p, p.current_ability or 50) for p in players],
-            key=lambda x: x[1],
-            reverse=True
+            [(p, p.current_ability or 50) for p in players], key=lambda x: x[1], reverse=True
         )
         star_players = [p[0].full_name for p, _ in sorted_players[:5]]
 
@@ -430,9 +440,9 @@ class LLMManager:
     async def plan_lineup(
         self,
         opponent_id: int,
-        match_importance: str = "normal",
         available_players: List[int],
         session: AsyncSession,
+        match_importance: str = "normal",
     ) -> TacticalPlan:
         """Plan tactics and lineup for upcoming match."""
         # Get club context
@@ -460,9 +470,7 @@ class LLMManager:
             mentality = "balanced"
 
         # Select formation based on available players
-        formation = self._select_formation_based_on_squad(
-            available_players, context
-        )
+        formation = self._select_formation_based_on_squad(available_players, context)
 
         return TacticalPlan(
             formation=formation,
@@ -484,16 +492,26 @@ class LLMManager:
         # Count players by position
         position_groups = {
             "GK": [],
-            "CB": [], "LB": [], "RB": [], "LWB": [], "RWB": [],
-            "CDM": [], "CM": [], "LM": [], "RM": [],
-            "CAM": [], "LW": [], "RW": [], "ST": [], "CF": []
+            "CB": [],
+            "LB": [],
+            "RB": [],
+            "LWB": [],
+            "RWB": [],
+            "CDM": [],
+            "CM": [],
+            "LM": [],
+            "RM": [],
+            "CAM": [],
+            "LW": [],
+            "RW": [],
+            "ST": [],
+            "CF": [],
         }
 
         # Get player evaluations (would need to be passed in or fetched)
         # For now, check balance
         gk_count = 0
         cb_count = 0
-        etc...
 
         # Simple formation selection based on available count
         if gk_count >= 1 and cb_count >= 4:
@@ -634,9 +652,7 @@ class LLMManager:
         context = await self.get_club_context(session)
 
         # Get players
-        result = await session.execute(
-            select(Player).where(Player.club_id == self.club_id)
-        )
+        result = await session.execute(select(Player).where(Player.club_id == self.club_id))
         players = list(result.scalars().all())
 
         # Identify potential targets based on:
@@ -655,10 +671,7 @@ class LLMManager:
         await self.evaluate_players(session)
 
         # Prioritize targets
-        targets.sort(
-            key=lambda p: (p.potential_ability or 50, -p.age or 25),
-            reverse=True
-        )
+        targets.sort(key=lambda p: (p.potential_ability or 50, -p.age or 25), reverse=True)
 
         self.transfer_strategy.early_window_targets = len(targets)
 
@@ -692,22 +705,25 @@ class LLMManager:
         if situation == "dominating":
             reasoning = "Keep pressing high, maintain momentum"
             decision_type = "tactical"
-            details={"action": "maintain_aggressive_style", "intensity": "high"}
+            details = {"action": "maintain_aggressive_style", "intensity": "high"}
 
         elif situation == "trailing":
             reasoning = "Push for equalizer, commit more players forward"
             decision_type = "tactical"
-            details={"action": "become_more_attacking", "push_fullbacks_forward"}
+            details = {"action": "become_more_attacking", "instruction": "push_fullbacks_forward"}
 
         elif situation == "struggling":
             reasoning = "Defend deep, try to counter"
             decision_type = "tactical"
-            details={"action": "switch_to_defensive", "park_the_bus"}
+            details = {"action": "switch_to_defensive", "instruction": "park_the_bus"}
 
         else:
             reasoning = "Continue balanced approach"
             decision_type = "tactical"
-            details={"action": "maintain_balance", "make_substitutions_at_70th_minute"}
+            details = {
+                "action": "maintain_balance",
+                "instruction": "make_substitutions_at_70th_minute",
+            }
 
         return ManagerDecision(
             timestamp=date.today(),
