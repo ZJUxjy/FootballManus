@@ -6,8 +6,9 @@ Integrates Calendar system for season progression and match simulation.
 
 import asyncio
 import os
+import random
 import sys
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, List
 
 from wcwidth import wcswidth
@@ -28,7 +29,19 @@ from fm_manager.ai.llm_tool_interface import get_llm_tool_interface
 from fm_manager.data.cleaned_data_loader import load_for_match_engine, ClubDataFull
 from fm_manager.engine.llm_client import LLMClient, LLMProvider
 from fm_manager.engine.calendar import Calendar, create_league_calendar, Match
-from fm_manager.engine.match_engine_markov import MarkovMatchEngine, MatchState, MatchEvent
+from fm_manager.engine.match_engine_markov import EnhancedMarkovEngine
+from fm_manager.engine.transfer_market import TransferMarket
+from fm_manager.ai.tools.transfer_tools import (
+    set_transfer_market,
+    set_current_club_id,
+    make_transfer_offer_tool,
+    list_player_for_transfer_tool,
+    view_transfer_list_tool,
+    view_my_offers_tool,
+    respond_to_offer_tool,
+    withdraw_offer_tool,
+)
+from fm_manager.core.game_save import SaveLoadManager, format_save_info
 
 
 class FMManagerCompleter(WordCompleter):
@@ -57,6 +70,14 @@ class FMManagerCompleter(WordCompleter):
             "exit",
             "quit",
             "help",
+            "market",
+            "listings",
+            "offers",
+            "negotiate",
+            "withdraw",
+            "accept",
+            "reject",
+            "counter",
             # Chinese
             "找",
             "搜索",
@@ -77,6 +98,14 @@ class FMManagerCompleter(WordCompleter):
             "保存",
             "退出",
             "帮助",
+            "市场",
+            "挂牌",
+            "报价",
+            "谈判",
+            "撤回",
+            "接受",
+            "拒绝",
+            "还价",
         ]
 
         attributes = [
@@ -139,8 +168,12 @@ class EnhancedNLGameInterface:
 
         # Calendar and Match Engine
         self.calendar: Optional[Calendar] = None
-        self.match_engine = MarkovMatchEngine()
+        self.match_engine = EnhancedMarkovEngine()
         self.all_clubs: dict = {}
+
+        self.transfer_market: Optional[TransferMarket] = None
+
+        self.save_manager = SaveLoadManager()
 
         # Detect locale
         self.locale = self._detect_locale()
@@ -294,6 +327,10 @@ class EnhancedNLGameInterface:
   • "table" / "standings" - View league table
   • "next" / "advance" - Play next week
   • "skip" - Simulate rest of season
+  • "market" / "listings" - View transfer market
+  • "offers" - View transfer offers
+  • "buy [player]" - Make transfer offer
+  • "sell [player]" - List player for transfer
   
   • "找英格兰中场球员，23岁以下，潜力高"
   • "查看我的阵容按身价排序"
@@ -365,6 +402,9 @@ class EnhancedNLGameInterface:
         # Initialize calendar for the league
         await self._init_calendar()
 
+        # Initialize transfer market
+        await self._init_transfer_market()
+
         budget = getattr(self.current_club, "balance", 0) or getattr(
             self.current_club, "transfer_budget", 0
         )
@@ -392,6 +432,17 @@ class EnhancedNLGameInterface:
         self.calendar = create_league_calendar(self.current_club.league, team_names, 2024)
 
         self.in_game_date = self.calendar._get_match_date(1)
+
+    async def _init_transfer_market(self):
+        self.transfer_market = TransferMarket(
+            all_clubs=self.all_clubs,
+            all_players=self.all_clubs,
+            current_date=self.in_game_date,
+            transfer_window_open=True,
+        )
+
+        set_transfer_market(self.transfer_market)
+        set_current_club_id(getattr(self.current_club, "id", 0))
 
     def get_user_matches(self) -> list[Match]:
         """Get matches involving user's club for current week."""
@@ -537,14 +588,9 @@ class EnhancedNLGameInterface:
             )
 
             if home_club and away_club:
-                # Use Markov engine for realistic simulation
-                state = MatchState(home_club, away_club)
-                result = self.match_engine.simulate(state)
+                result = self.match_engine.simulate(home_club.players, away_club.players)
                 match.play(result.home_goals, result.away_goals)
             else:
-                # Fallback to simple random
-                import random
-
                 home_goals = random.randint(0, 4)
                 away_goals = random.randint(0, 3)
                 match.play(home_goals, away_goals)
@@ -572,6 +618,9 @@ class EnhancedNLGameInterface:
 
         # Show updated standings
         self.show_standings()
+
+        if self.transfer_market:
+            await self._process_transfer_market()
 
         # Advance to next week
         has_more = self.calendar.advance_week()
@@ -606,6 +655,94 @@ class EnhancedNLGameInterface:
         for pos, (team, stats) in enumerate(sorted_teams[:5], 1):
             marker = " 👤" if team == self.current_club.name else ""
             self.console.print(f"  {pos}. {team}{marker} - {stats['points']}pts")
+
+    async def _process_transfer_market(self):
+        if not self.transfer_market:
+            return
+
+        updates = self.transfer_market.advance_week()
+
+        if updates:
+            self.console.print("\n[bold cyan]📋 TRANSFER MARKET:[/bold cyan]")
+            for update in updates[:5]:
+                self.console.print(f"  • {update}")
+
+    async def _show_transfer_market(self):
+        if not self.transfer_market:
+            self.console.print("[red]Transfer market not initialized[/red]")
+            return
+
+        listings = self.transfer_market.get_available_listings(limit=20)
+
+        if not listings:
+            self.console.print("\n[yellow]No players currently listed on transfer market.[/yellow]")
+            return
+
+        self.console.print("\n[bold cyan]📋 TRANSFER MARKET - Available Players:[/bold cyan]\n")
+
+        table = Table(show_header=True, header_style="bold cyan")
+        table.add_column("Player", style="cyan")
+        table.add_column("Position", justify="center")
+        table.add_column("Age", justify="center")
+        table.add_column("Club", style="dim")
+        table.add_column("Asking Price", justify="right", style="green")
+        table.add_column("Market Value", justify="right", style="yellow")
+
+        for listing in listings:
+            player = self.transfer_market.all_players.get(listing.player_id)
+            if player:
+                table.add_row(
+                    player.full_name,
+                    str(getattr(player, "position", "-")),
+                    str(getattr(player, "age", "-")),
+                    getattr(player, "club_name", "-"),
+                    f"£{listing.asking_price:,}",
+                    f"£{getattr(player, 'market_value', 0):,}",
+                )
+
+        self.console.print(table)
+        self.console.print(
+            f"\n[dim]Showing {len(listings)} players. Use 'buy [player name]' to make an offer.[/dim]\n"
+        )
+
+    async def _show_transfer_offers(self):
+        if not self.transfer_market or not self.current_club:
+            self.console.print("[red]Transfer market not initialized[/red]")
+            return
+
+        club_id = getattr(self.current_club, "id", 0)
+        incoming = self.transfer_market.get_incoming_offers(club_id)
+        outgoing = self.transfer_market.get_outgoing_offers(club_id)
+
+        self.console.print("\n[bold cyan]📋 TRANSFER OFFERS:[/bold cyan]\n")
+
+        if incoming:
+            self.console.print("[bold]Incoming Offers (to your club):[/bold]")
+            for offer in incoming:
+                player = self.transfer_market.all_players.get(offer.player_id)
+                from_club = self.transfer_market.all_clubs.get(offer.from_club_id)
+                if player and from_club:
+                    self.console.print(
+                        f"  • {from_club.name} offers £{offer.fee:,} for {player.full_name} [{offer.status}]"
+                    )
+        else:
+            self.console.print("[dim]No incoming offers.[/dim]")
+
+        self.console.print()
+
+        if outgoing:
+            self.console.print("[bold]Outgoing Offers (from your club):[/bold]")
+            for offer in outgoing:
+                player = self.transfer_market.all_players.get(offer.player_id)
+                to_club = self.transfer_market.all_clubs.get(offer.to_club_id)
+                if player and to_club:
+                    self.console.print(
+                        f"  • Offered £{offer.fee:,} for {player.full_name} from {to_club.name} [{offer.status}]"
+                    )
+        else:
+            self.console.print("[dim]No outgoing offers.[/dim]")
+
+        self.console.print()
 
     async def _prompt_async(self, message: str) -> str:
         """Async wrapper for prompt."""
@@ -675,6 +812,26 @@ class EnhancedNLGameInterface:
             await self._simulate_rest_of_season()
             return
 
+        if cmd in ["save", "保存"]:
+            await self.save_game()
+            return
+
+        if cmd in ["load", "加载", "载入"]:
+            await self.load_game()
+            return
+
+        if cmd in ["saves", "存档列表"]:
+            await self.list_saves()
+            return
+
+        if cmd in ["market", "listings", "transfer market", "转会市场", "挂牌"]:
+            await self._show_transfer_market()
+            return
+
+        if cmd in ["offers", "my offers", "transfer offers", "报价"]:
+            await self._show_transfer_offers()
+            return
+
         with self.console.status(
             f"[bold cyan]{self._t('ai_thinking')}[/bold cyan]", spinner="dots"
         ):
@@ -718,11 +875,116 @@ class EnhancedNLGameInterface:
         choice = await self._prompt_async("\nChoice (1-3): ")
 
         if choice == "1":
+            await self.save_game()
             self.console.print(f"\n[green]✓ {self._t('success')}! Goodbye![/green]\n")
         elif choice == "2":
             self.console.print(f"\n[green]Goodbye![/green]\n")
         elif choice == "3":
             self.running = True
+
+    async def save_game(self, save_name: Optional[str] = None) -> bool:
+        """Save current game state."""
+        if not self.current_club or not self.calendar:
+            self.console.print("[red]No active game to save[/red]")
+            return False
+
+        if not save_name:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            save_name = f"{self.current_club.name.replace(' ', '_')}_{timestamp}"
+
+        try:
+            save_path = self.save_manager.save_game(
+                save_name=save_name,
+                club_name=self.current_club.name,
+                club_id=getattr(self.current_club, "id", 0),
+                league_name=self.current_club.league,
+                season_year=2024,
+                current_week=self.calendar.current_week,
+                calendar=self.calendar,
+                in_game_date=self.in_game_date,
+                metadata={
+                    "season": self.current_season,
+                    "version": "1.0",
+                },
+            )
+            self.console.print(f"[green]✓ Game saved: {save_name}[/green]")
+            return True
+        except Exception as e:
+            self.console.print(f"[red]Failed to save game: {e}[/red]")
+            return False
+
+    async def load_game(self, save_name: Optional[str] = None) -> bool:
+        """Load game from save file."""
+        saves = self.save_manager.list_saves()
+
+        if not saves:
+            self.console.print("[yellow]No saved games found[/yellow]")
+            return False
+
+        if not save_name:
+            self.console.print("\n[bold]Available saves:[/bold]")
+            for i, save in enumerate(saves[:10], 1):
+                self.console.print(f"  {i}. {format_save_info(save)}")
+
+            choice = await self._prompt_async("\nSelect save (number or name): ")
+
+            if choice.isdigit():
+                idx = int(choice) - 1
+                if 0 <= idx < len(saves[:10]):
+                    save_name = saves[idx]["name"]
+                else:
+                    self.console.print("[red]Invalid selection[/red]")
+                    return False
+            else:
+                save_name = choice
+
+        try:
+            game_state = self.save_manager.load_game(save_name)
+            self.all_clubs, _ = load_for_match_engine()
+            club_id = game_state.club_id
+            self.current_club = None
+            for club in self.all_clubs.values():
+                if getattr(club, "id", None) == club_id or club.name == game_state.club_name:
+                    self.current_club = club
+                    break
+
+            if not self.current_club:
+                self.console.print(f"[red]Could not find club: {game_state.club_name}[/red]")
+                return False
+
+            self.calendar = self.save_manager.restore_calendar(game_state)
+            self.current_season = game_state.season_year
+            self.in_game_date = date.fromisoformat(game_state.in_game_date)
+
+            if self.tool_interface:
+                self.tool_interface.set_club(self.current_club)
+                self.tool_interface.set_calendar(self.calendar)
+
+            self.console.print(
+                f"[green]✓ Game loaded: {game_state.club_name} - Week {game_state.current_week}[/green]"
+            )
+            return True
+
+        except FileNotFoundError:
+            self.console.print(f"[red]Save not found: {save_name}[/red]")
+            return False
+        except Exception as e:
+            self.console.print(f"[red]Failed to load game: {e}[/red]")
+            return False
+
+    async def list_saves(self):
+        """Display list of saved games."""
+        saves = self.save_manager.list_saves()
+
+        if not saves:
+            self.console.print("[yellow]No saved games found[/yellow]")
+            return
+
+        self.console.print("\n[bold cyan]📁 Saved Games:[/bold cyan]\n")
+        for i, save in enumerate(saves[:10], 1):
+            self.console.print(f"  {i}. {format_save_info(save)}")
+
+        self.console.print()
 
 
 async def main():

@@ -22,15 +22,17 @@ from fm_manager.engine.team_state import TeamStateManager, PlayerMatchState
 
 class InjuryType(Enum):
     """Types of injuries."""
-    MINOR = "minor"           # 1-3 weeks out
-    MODERATE = "moderate"       # 3-6 weeks out
-    SERIOUS = "serious"          # 2-3 months out
+
+    MINOR = "minor"  # 1-3 weeks out
+    MODERATE = "moderate"  # 3-6 weeks out
+    SERIOUS = "serious"  # 2-3 months out
     CAREER_ENDING = "career_ending"  # Season-ending
-    FRACTURE = "fracture"       # 6 weeks out
+    FRACTURE = "fracture"  # 6 weeks out
 
 
 class InjuryStatus(Enum):
     """Status of player injury."""
+
     INJURED = "injured"
     RECOVERING = "recovering"
     FIT = "fit"
@@ -41,6 +43,7 @@ class InjuryStatus(Enum):
 @dataclass
 class Injury:
     """Record of an injury."""
+
     injury_id: str
     player_id: int
     club_id: int
@@ -66,6 +69,7 @@ class Injury:
 @dataclass
 class PlayerChemistry:
     """Chemistry between players."""
+
     player1_id: int
     player2_id: int
 
@@ -88,17 +92,18 @@ class PlayerChemistry:
     def get_total_chemistry(self) -> float:
         """Get overall chemistry score."""
         return (
-            self.compatibility_score * 0.4 +
-            self.attacking_compatibility * 0.3 +
-            self.defensive_compatibility * 0.2 +
-            self.tactical_compatibility * 0.1 +
-            self.relationship_score * 0.2
+            self.compatibility_score * 0.4
+            + self.attacking_compatibility * 0.3
+            + self.defensive_compatibility * 0.2
+            + self.tactical_compatibility * 0.1
+            + self.relationship_score * 0.2
         )
 
 
 @dataclass
 class InjuryReport:
     """Summary of injuries for a season."""
+
     season_year: int
 
     # Injury statistics
@@ -114,7 +119,9 @@ class InjuryReport:
 
     # Season ending injuries
     season_ending_injuries: List[Dict] = field(default_factory=list)  # Players whose careers ended
-    club_ending_injuries: Dict[str, List[Dict]] = field(default_factory=dict)  # club_id -> list of injury records
+    club_ending_injuries: Dict[str, List[Dict]] = field(
+        default_factory=dict
+    )  # club_id -> list of injury records
 
 
 class InjuryEngine:
@@ -163,8 +170,11 @@ class InjuryEngine:
         else:
             importance_factor = 1.0  # Normal league games
 
-        # Position risk
-        position = player.position.value if player.position else "MID"
+        position = (
+            player.position.value
+            if hasattr(player.position, "value")
+            else (player.position or "MID")
+        )
         high_risk_positions = ["ST", "CF", "CAM", "LW", "RW"]
 
         if position in high_risk_positions:
@@ -184,7 +194,14 @@ class InjuryEngine:
             age_factor = 1.0
 
         # Calculate total risk
-        risk = base_risk * fatigue_factor * chemistry_factor * importance_factor * position_factor * age_factor
+        risk = (
+            base_risk
+            * fatigue_factor
+            * chemistry_factor
+            * importance_factor
+            * position_factor
+            * age_factor
+        )
 
         return max(0.001, min(0.05, risk))
 
@@ -242,11 +259,17 @@ class InjuryEngine:
         elif injury_type == InjuryType.MODERATE:
             effects.extend(["Moderate performance reduction", "Reduced mobility"])
         elif injury_type == InjuryType.SERIOUS:
-            effects.extend(["Significant performance reduction", "Reduced mobility", "Loss of match fitness"])
+            effects.extend(
+                ["Significant performance reduction", "Reduced mobility", "Loss of match fitness"]
+            )
         elif injury_type == InjuryType.FRACTURE:
-            effects.extend(["Significant performance reduction", "Bone injury", "Extended rehabilitation"])
+            effects.extend(
+                ["Significant performance reduction", "Bone injury", "Extended rehabilitation"]
+            )
         else:  # CAREER_ENDING
-            effects.extend(["Career-threatening injury", "Extended rehabilitation", "Potential retirement"])
+            effects.extend(
+                ["Career-threatening injury", "Extended rehabilitation", "Potential retirement"]
+            )
 
         return Injury(
             injury_id=f"inj_{player.id}_{occurred_at.isoformat()}",
@@ -281,7 +304,18 @@ class ChemistryEngine:
             "CAM": {"CM": 0.05, "CB": 0.15, "CDM": 0.25, "LB": 0.1, "RB": 0.1},
             "LW": {"ST": 0.15, "CM": 0.2, "CB": 0.3, "LB": 0.2, "RM": 0.2},
             "RW": {"ST": 0.1, "CAM": 0.05, "CB": 0.15, "CM": 0.1, "LW": 0.15, "RW": 0.1},
-            "CF": {"ST": 0.25, "CF": 0.35, "CM": 0.2, "CB": 0.15, "CF": 0.3, "LB": 0.25, "RB": 0.2, "CM": 0.1, "LB": 0.2, "RM": 0.2},
+            "CF": {
+                "ST": 0.25,
+                "CF": 0.35,
+                "CM": 0.2,
+                "CB": 0.15,
+                "CF": 0.3,
+                "LB": 0.25,
+                "RB": 0.2,
+                "CM": 0.1,
+                "LB": 0.2,
+                "RM": 0.2,
+            },
             "ST": {"ST": 0.25, "CF": 0.35, "CM": 0.2, "CB": 0.3, "LB": 0.25, "RW": 0.2},
         }
 
@@ -310,9 +344,17 @@ class ChemistryEngine:
         player2: Player,
     ) -> PlayerChemistry:
         """Calculate chemistry between two players."""
-        # Get positions
-        pos1 = player1.position.value if player1.position else "MID"
-        pos2 = player2.position.value if player2.position else "MID"
+        # Get positions (handle both enum and string)
+        pos1 = (
+            player1.position.value
+            if hasattr(player1.position, "value")
+            else (player1.position or "MID")
+        )
+        pos2 = (
+            player2.position.value
+            if hasattr(player2.position, "value")
+            else (player2.position or "MID")
+        )
 
         # Get position weights
         pos1_weights = self.position_weights.get(pos1, {})
@@ -335,7 +377,9 @@ class ChemistryEngine:
         avg_style = (style_compatibility + 1.0) / 2
 
         # Calculate overall positional compatibility
-        overall_compatibility = (avg_compatibility * 0.5) + (avg_style * 0.3) + (avg_compatibility * 0.2)
+        overall_compatibility = (
+            (avg_compatibility * 0.5) + (avg_style * 0.3) + (avg_compatibility * 0.2)
+        )
 
         # Relationship factor
         # Would need to track shared history or interactions

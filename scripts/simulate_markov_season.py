@@ -31,7 +31,7 @@ def simulate_season(enable_rotation: bool = False):
     clubs, players = load_for_match_engine()
 
     # Find Premier League clubs
-    premier_league = [c for c in clubs.values() if c.league == "England Premier League"]
+    premier_league = [c for c in clubs.values() if c.league == "La Liga"]
     # premier_league = [c for c in clubs.values() if c.league == "England Premier League"]
     if len(premier_league) != 20:
         print(f"Warning: Found {len(premier_league)} clubs, expected 20")

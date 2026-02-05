@@ -44,15 +44,25 @@ class MatchEventType(Enum):
 
     KICK_OFF = "kick_off"
     PASS = "pass"
+    PASS_SUCCESS = "pass_success"
+    PASS_FAIL = "pass_fail"
     DRIBBLE = "dribble"
     SHOT = "shot"
     SHOT_ON_TARGET = "shot_on_target"
+    SHOT_OFF_TARGET = "shot_off_target"
     GOAL_HOME = "goal_home"
     GOAL_AWAY = "goal_away"
     FOUL = "foul"
     CORNER = "corner"
+    CORNER_HOME = "corner_home"
+    CORNER_AWAY = "corner_away"
     FREE_KICK = "free_kick"
+    PENALTY = "penalty"
     CLEARANCE = "clearance"
+    YELLOW_CARD = "yellow_card"
+    RED_CARD = "red_card"
+    INJURY = "injury"
+    SUBSTITUTE = "substitute"
     HALF_TIME = "half_time"
     FULL_TIME = "full_time"
     SUBSTITUTION = "substitution"
@@ -68,6 +78,7 @@ class GameState:
     home_score: int = 0
     away_score: int = 0
     last_event: Optional[MatchEventType] = None
+    consecutive_passes: int = 0
 
 
 @dataclass
@@ -80,6 +91,7 @@ class MatchEvent:
     description: str
     player: Optional[str] = None
     player2: Optional[str] = None
+    zone: Optional[PitchZone] = None
 
 
 @dataclass
@@ -98,12 +110,36 @@ class PlayerMatchState:
     dribbles_completed: int = 0
     tackles_attempted: int = 0
     tackles_completed: int = 0
+    tackles: int = 0
+    interceptions: int = 0
+    blocks: int = 0
+    clearances: int = 0
+    key_passes: int = 0
+    dribbles: int = 0
+    dribbles_failed: int = 0
+    dribbles_completed: int = 0
     fouls_committed: int = 0
     fouls_suffered: int = 0
+    fouls: int = 0
+    yellow_cards: int = 0
+    red_cards: int = 0
+    saves: int = 0
+    goals_conceded: int = 0
+    own_goals: int = 0
     rating: float = 6.5
+    match_rating: float = 6.0
+    minutes_played: int = 0
     fatigue: float = 0.0
     is_subbed: bool = False
     is_injured: bool = False
+
+    def update_fatigue(self, amount: float) -> None:
+        """Update player fatigue level."""
+        self.fatigue = min(100.0, self.fatigue + amount)
+
+    def recover_fatigue(self, amount: float) -> None:
+        """Recover player fatigue."""
+        self.fatigue = max(0.0, self.fatigue - amount)
 
 
 @dataclass
@@ -129,30 +165,91 @@ class MatchState:
     away_corners: int = 0
     home_fouls: int = 0
     away_fouls: int = 0
+    home_goals_conceded: int = 0
+    away_goals_conceded: int = 0
+    home_saves: int = 0
+    away_saves: int = 0
+    home_score: int = 0
+    away_score: int = 0
 
     def score_string(self) -> str:
         """Get score as string."""
         return f"{self.home_goals}-{self.away_goals}"
 
 
-def compute_shot_xg(shooter, goalkeeper, distance: float) -> float:
-    """Compute expected goals for a shot."""
-    base_xg = 0.1
+def compute_shot_xg(
+    shooter=None,
+    goalkeeper=None,
+    distance: float = 15.0,
+    shooter_ca: float = None,
+    shooter_shooting: float = None,
+    shooter_positioning: float = None,
+    shooter_strength: float = None,
+    gk_ca: float = None,
+    gk_positioning: float = None,
+    gk_reflexes: float = None,
+    shot_distance: float = None,
+    shot_angle: float = None,
+    is_header: bool = False,
+    is_breakaway: bool = False,
+    pressure: float = 0.0,
+    defensive_pressure: float = 0.0,
+    **kwargs,
+) -> dict:
+    """Compute expected goals for a shot with enhanced factors."""
+    # Use provided distance or fall back to parameter
+    dist = shot_distance if shot_distance is not None else distance
 
-    # Shooting ability
-    shooting = getattr(shooter, "shooting", 10)
-    composure = getattr(shooter, "composure", 10)
-    shooting_factor = (shooting + composure) / 200
+    base_xg = 0.11
 
-    # Goalkeeper ability
-    gk_ability = getattr(goalkeeper, "goalkeeping", 10) if goalkeeper else 10
-    gk_factor = 1 - (gk_ability / 200)
+    # Shooting ability factor
+    if shooter_shooting is not None and shooter_positioning is not None:
+        shooting_factor = (shooter_shooting + shooter_positioning) / 200
+    elif shooter is not None:
+        shooting = getattr(shooter, "shooting", 10)
+        composure = getattr(shooter, "composure", 10)
+        shooting_factor = (shooting + composure) / 200
+    else:
+        shooting_factor = 0.1
+
+    # Goalkeeper factor
+    if gk_reflexes is not None and gk_positioning is not None:
+        gk_factor = 1 - ((gk_reflexes + gk_positioning) / 400)
+    elif goalkeeper is not None:
+        gk_ability = getattr(goalkeeper, "goalkeeping", 10)
+        gk_factor = 1 - (gk_ability / 200)
+    else:
+        gk_factor = 0.95
 
     # Distance factor (closer = higher xG)
-    distance_factor = max(0.3, 1 - (distance / 100))
+    distance_factor = max(0.3, 1 - (dist / 100))
 
+    # Apply all factors
     xg = base_xg * shooting_factor * gk_factor * distance_factor
-    return min(0.95, max(0.01, xg))
+
+    # Apply pressure modifiers
+    if pressure > 0:
+        xg *= max(0.5, 1 - pressure / 100)
+    if defensive_pressure > 0:
+        xg *= max(0.5, 1 - defensive_pressure / 100)
+
+    # Breakaway bonus
+    if is_breakaway:
+        xg *= 1.3
+
+    # Header penalty
+    if is_header:
+        xg *= 0.8
+
+    # Calculate final probabilities
+    goal_prob = min(0.95, max(0.01, xg))
+    on_target_prob = min(0.98, goal_prob * 2.5)  # On target is roughly 2.5x goal probability
+
+    return {
+        "goal": goal_prob,
+        "on_target": on_target_prob,
+        "xg": goal_prob,
+    }
 
 
 # Legacy MarkovMatchEngine for backward compatibility
@@ -193,6 +290,305 @@ class MarkovMatchEngine:
             match_state.away_goals += 1
             match_state.away_shots += 1
             match_state.away_shots_on_target += 1
+
+    def _select_player(
+        self, match_state: MatchState, team: str, role: str
+    ) -> Optional[PlayerMatchState]:
+        """Select a player from the team based on role."""
+        if team == "home":
+            players = list(match_state.home_player_stats.values())
+        else:
+            players = list(match_state.away_player_stats.values())
+
+        if not players:
+            return None
+
+        # Filter by role if possible
+        if role == "gk":
+            gks = [p for p in players if "GK" in str(getattr(p.player, "position", ""))]
+            if gks:
+                return self.rng.choice(gks)
+        elif role == "def":
+            defs = [
+                p
+                for p in players
+                if any(
+                    pos in str(getattr(p.player, "position", ""))
+                    for pos in ["CB", "LB", "RB", "WB", "LCB", "RCB", "LWB", "RWB"]
+                )
+            ]
+            if defs:
+                return self.rng.choice(defs)
+        elif role == "mid":
+            mids = [
+                p
+                for p in players
+                if any(
+                    pos in str(getattr(p.player, "position", ""))
+                    for pos in ["CM", "DM", "AM", "WM", "CDM", "CAM", "LM", "RM"]
+                )
+            ]
+            if mids:
+                return self.rng.choice(mids)
+        elif role == "att":
+            atts = [
+                p
+                for p in players
+                if any(
+                    pos in str(getattr(p.player, "position", ""))
+                    for pos in ["ST", "CF", "WF", "AM", "LW", "RW", "SS"]
+                )
+            ]
+            if atts:
+                return self.rng.choice(atts)
+
+        # Fallback: return random player
+        return self.rng.choice(players)
+
+    def _select_shooter(
+        self, match_state: MatchState, team: str, game_state: GameState
+    ) -> Optional[PlayerMatchState]:
+        """Select a player to take a shot."""
+        return self._select_player(match_state, team, "att")
+
+    def _select_passer_by_zone(
+        self, match_state: MatchState, team: str, zone: PitchZone
+    ) -> Optional[PlayerMatchState]:
+        """Select a passer based on zone for realistic position distribution."""
+        if team == "home":
+            players = list(match_state.home_player_stats.values())
+        else:
+            players = list(match_state.away_player_stats.values())
+
+        if not players:
+            return None
+
+        # Zone-based position selection probabilities
+        if zone == PitchZone.HOME_BOX:
+            # Goalkeeper and central defenders build from back
+            gks = [p for p in players if "GK" in str(getattr(p.player, "position", ""))]
+            cbs = [p for p in players if "CB" in str(getattr(p.player, "position", ""))]
+            if self.rng.random() < 0.70 and gks:
+                return self.rng.choice(gks)
+            elif cbs:
+                return self.rng.choice(cbs)
+            return self.rng.choice(players)
+
+        elif zone == PitchZone.HOME_THIRD:
+            # Defenders and defensive midfielders
+            cbs = [p for p in players if "CB" in str(getattr(p.player, "position", ""))]
+            fbs = [
+                p
+                for p in players
+                if any(pos in str(getattr(p.player, "position", "")) for pos in ["LB", "RB", "WB"])
+            ]
+            dms = [p for p in players if "CDM" in str(getattr(p.player, "position", ""))]
+            cms = [p for p in players if "CM" in str(getattr(p.player, "position", ""))]
+
+            r = self.rng.random()
+            if r < 0.50 and cbs:
+                return self.rng.choice(cbs)
+            elif r < 0.80 and fbs:
+                return self.rng.choice(fbs)
+            elif r < 0.90 and dms:
+                return self.rng.choice(dms)
+            elif cms:
+                return self.rng.choice(cms)
+            return self.rng.choice(players)
+
+        elif zone == PitchZone.MIDFIELD:
+            # Central midfielders and full-backs
+            cms = [p for p in players if "CM" in str(getattr(p.player, "position", ""))]
+            dms = [p for p in players if "CDM" in str(getattr(p.player, "position", ""))]
+            fbs = [
+                p
+                for p in players
+                if any(pos in str(getattr(p.player, "position", "")) for pos in ["LB", "RB", "WB"])
+            ]
+            ams = [p for p in players if "CAM" in str(getattr(p.player, "position", ""))]
+
+            r = self.rng.random()
+            if r < 0.60 and (cms or dms):
+                mid_pool = cms + dms
+                return self.rng.choice(mid_pool)
+            elif r < 0.85 and fbs:
+                return self.rng.choice(fbs)
+            elif ams:
+                return self.rng.choice(ams)
+            return self.rng.choice(players)
+
+        elif zone == PitchZone.AWAY_THIRD:
+            # Attacking midfielders, wingers, strikers
+            ams = [
+                p
+                for p in players
+                if any(
+                    pos in str(getattr(p.player, "position", ""))
+                    for pos in ["CAM", "LM", "RM", "LW", "RW"]
+                )
+            ]
+            sts = [
+                p
+                for p in players
+                if any(pos in str(getattr(p.player, "position", "")) for pos in ["ST", "CF"])
+            ]
+            fbs = [
+                p
+                for p in players
+                if any(pos in str(getattr(p.player, "position", "")) for pos in ["LB", "RB", "WB"])
+            ]
+
+            r = self.rng.random()
+            if r < 0.40 and ams:
+                return self.rng.choice(ams)
+            elif r < 0.70 and sts:
+                return self.rng.choice(sts)
+            elif r < 0.95 and fbs:
+                return self.rng.choice(fbs)
+            return self.rng.choice(players)
+
+        elif zone == PitchZone.AWAY_BOX:
+            # Strikers and wingers
+            sts = [
+                p
+                for p in players
+                if any(pos in str(getattr(p.player, "position", "")) for pos in ["ST", "CF"])
+            ]
+            wingers = [
+                p
+                for p in players
+                if any(pos in str(getattr(p.player, "position", "")) for pos in ["LW", "RW", "WF"])
+            ]
+            ams = [p for p in players if "CAM" in str(getattr(p.player, "position", ""))]
+            fbs = [
+                p
+                for p in players
+                if any(pos in str(getattr(p.player, "position", "")) for pos in ["LB", "RB", "WB"])
+            ]
+
+            r = self.rng.random()
+            if r < 0.40 and sts:
+                return self.rng.choice(sts)
+            elif r < 0.75 and wingers:
+                return self.rng.choice(wingers)
+            elif r < 0.95 and ams:
+                return self.rng.choice(ams)
+            elif fbs:
+                return self.rng.choice(fbs)
+            return self.rng.choice(players)
+
+        return self.rng.choice(players)
+
+    def _get_shot_location(
+        self, match_state: MatchState, attacking_team: str, game_state: GameState = None
+    ) -> Tuple[float, float, bool]:
+        """Get shot location details."""
+        # Default values
+        distance = 15.0
+        angle = 30.0
+        is_breakaway = False
+        return distance, angle, is_breakaway
+
+    def _advance_zone(self, current_zone: PitchZone, team: str) -> PitchZone:
+        """Advance to next zone."""
+        zone_order = [
+            PitchZone.HOME_BOX,
+            PitchZone.HOME_THIRD,
+            PitchZone.MIDFIELD,
+            PitchZone.AWAY_THIRD,
+            PitchZone.AWAY_BOX,
+        ]
+
+        if team == "home":
+            # Home team attacks toward away box
+            idx = zone_order.index(current_zone)
+            if idx < len(zone_order) - 1:
+                return zone_order[idx + 1]
+        else:
+            # Away team attacks toward home box
+            idx = zone_order.index(current_zone)
+            if idx > 0:
+                return zone_order[idx - 1]
+
+        return current_zone
+
+    def _handle_dribble(
+        self,
+        game_state: GameState,
+        match_state: MatchState,
+        attacking_team: str,
+        defending_team: str = None,
+        att_strength: dict = None,
+        def_strength: dict = None,
+    ) -> Optional[MatchEvent]:
+        """Handle dribble event with player tracking."""
+        # Select dribbler based on zone
+        dribbler_role = self._get_dribbler_role(game_state.zone, attacking_team)
+        dribbler = self._select_player(match_state, attacking_team, dribbler_role)
+
+        if dribbler:
+            dribbler.dribbles_attempted += 1
+            dribbler.update_fatigue(0.5)
+
+        if self.rng.random() < 0.6:
+            # Successful dribble
+            if dribbler:
+                dribbler.dribbles += 1
+                dribbler.dribbles_completed += 1
+
+            game_state.zone = self._advance_zone(game_state.zone, attacking_team)
+            return MatchEvent(
+                minute=game_state.minute,
+                event_type=MatchEventType.DRIBBLE,
+                team=attacking_team,
+                player=getattr(dribbler.player, "full_name", None) if dribbler else None,
+                description=f"Dribble succeeded",
+            )
+        else:
+            # Failed dribble - turnover with tackle
+            if dribbler:
+                dribbler.dribbles_failed += 1
+
+            # Select defender who made the tackle
+            if defending_team:
+                tackler = self._select_player(match_state, defending_team, "def")
+                if tackler:
+                    tackler.tackles += 1
+                    tackler.tackles_completed += 1
+                    tackler.tackles_attempted += 1
+                    tackler.update_fatigue(0.4)
+
+            game_state.possession = Possession.AWAY if attacking_team == "home" else Possession.HOME
+            return MatchEvent(
+                minute=game_state.minute,
+                event_type=MatchEventType.DRIBBLE,
+                team=attacking_team,
+                player=getattr(dribbler.player, "full_name", None) if dribbler else None,
+                description=f"Dribble failed",
+            )
+
+    def _get_dribbler_role(self, zone: PitchZone, attacking_team: str) -> str:
+        """Determine which position type should dribble based on zone."""
+        if zone in [PitchZone.HOME_BOX, PitchZone.HOME_THIRD]:
+            return "def"
+        elif zone == PitchZone.MIDFIELD:
+            return "mid"
+        else:
+            return "att"
+
+    def _handle_clearance(
+        self, game_state: GameState, match_state: MatchState, defending_team: str
+    ) -> Optional[MatchEvent]:
+        """Handle clearance event."""
+        # Clear ball to midfield
+        game_state.zone = PitchZone.MIDFIELD
+        game_state.possession = Possession.AWAY if defending_team == "home" else Possession.HOME
+        return MatchEvent(
+            minute=game_state.minute,
+            event_type=MatchEventType.CLEARANCE,
+            team=defending_team,
+            description=f"Clearance",
+        )
 
 
 class MatchStage(Enum):
@@ -342,10 +738,9 @@ class EnhancedMarkovEngine:
         away_strength = self._calculate_team_strength(away_lineup)
 
         # === 基于球队实力的初始控球概率 ===
-        # 强队更有可能开球后控制球权
         strength_diff = home_strength["overall"] - away_strength["overall"]
-        home_possession_prob = 0.5 + (strength_diff / 200)  # 0.35 到 0.65 范围
-        home_possession_prob = max(0.35, min(0.65, home_possession_prob))
+        home_possession_prob = 0.5 + (strength_diff / 120)
+        home_possession_prob = max(0.30, min(0.70, home_possession_prob))
 
         initial_possession = (
             Possession.HOME if random.random() < home_possession_prob else Possession.AWAY
@@ -378,7 +773,7 @@ class EnhancedMarkovEngine:
             score_diff = game_state.home_score - game_state.away_score
 
             # Each minute can have multiple events
-            max_events_per_minute = 2
+            max_events_per_minute = 6
             events_this_minute = 0
 
             while events_this_minute < max_events_per_minute:
@@ -431,6 +826,13 @@ class EnhancedMarkovEngine:
         total_passes = match_state.home_passes + match_state.away_passes
         if total_passes > 0:
             match_state.home_possession = (match_state.home_passes / total_passes) * 100
+
+        for stats in match_state.home_player_stats.values():
+            if not stats.is_subbed:
+                stats.minutes_played = 90
+        for stats in match_state.away_player_stats.values():
+            if not stats.is_subbed:
+                stats.minutes_played = 90
 
         # Calculate player ratings
         self._calculate_match_ratings_enhanced(match_state)
@@ -541,38 +943,38 @@ class EnhancedMarkovEngine:
         # Base probabilities
         base_probs = {
             PitchZone.HOME_BOX: {
-                "clearance": 0.30,
-                "pass": 0.45,
+                "clearance": 0.25,
+                "pass": 0.40,
                 "dribble": 0.10,
                 "foul": 0.12,
-                "shot": 0.02,
+                "shot": 0.08,
             },
             PitchZone.HOME_THIRD: {
-                "pass": 0.55,
+                "pass": 0.52,
                 "dribble": 0.24,
                 "foul": 0.13,
                 "clearance": 0.05,
-                "shot": 0.03,
+                "shot": 0.06,
             },
             PitchZone.MIDFIELD: {
-                "pass": 0.58,
-                "dribble": 0.30,
+                "pass": 0.55,
+                "dribble": 0.28,
                 "foul": 0.09,
-                "shot": 0.03,
+                "shot": 0.08,
                 "clearance": 0.0,
             },
             PitchZone.AWAY_THIRD: {
-                "pass": 0.48,
-                "dribble": 0.27,
-                "foul": 0.11,
-                "shot": 0.12,
+                "pass": 0.45,
+                "dribble": 0.25,
+                "foul": 0.10,
+                "shot": 0.20,
                 "clearance": 0.0,
             },
             PitchZone.AWAY_BOX: {
-                "shot": 0.18,
-                "pass": 0.40,
-                "dribble": 0.22,
-                "foul": 0.11,
+                "shot": 0.35,
+                "pass": 0.30,
+                "dribble": 0.18,
+                "foul": 0.12,
                 "clearance": 0.0,
             },
         }
@@ -585,9 +987,7 @@ class EnhancedMarkovEngine:
         def_overall = def_strength["overall"]
         strength_diff = att_overall - def_overall  # 正值表示进攻方更强
 
-        # 实力差距对事件概率的调整因子 - 增强效果
-        # 差距 20 点能力值时，进攻方优势约 40%
-        strength_factor = strength_diff / 80.0  # -0.75 到 +0.75 范围
+        strength_factor = strength_diff / 50.0  # -1.2 到 +1.2 范围
 
         # Home advantage adjustment
         if attacking_team == "home":
@@ -595,18 +995,16 @@ class EnhancedMarkovEngine:
         elif attacking_team == "away":
             strength_factor -= 0.05  # -5% penalty for away team
 
-        # 强队更容易传球成功、创造射门机会
-        # 弱队更容易被逼抢、被迫解围
         if "pass" in probs:
-            probs["pass"] *= 1.0 + strength_factor * 0.20
+            probs["pass"] *= 1.0 + strength_factor * 0.30
         if "dribble" in probs:
-            probs["dribble"] *= 1.0 + strength_factor * 0.15
+            probs["dribble"] *= 1.0 + strength_factor * 0.20
         if "clearance" in probs:
-            probs["clearance"] *= 1.0 - strength_factor * 0.30
+            probs["clearance"] *= 1.0 - strength_factor * 0.40
         if "shot" in probs:
-            probs["shot"] *= 1.0 + strength_factor * 0.20
+            probs["shot"] *= 1.0 + strength_factor * 0.35
         if "foul" in probs:
-            probs["foul"] *= 1.0 - strength_factor * 0.10
+            probs["foul"] *= 1.0 - strength_factor * 0.15
 
         # Tactical modifiers
         tempo = att_tactics.get_pressing_modifier(minute, score_diff)
@@ -751,8 +1149,8 @@ class EnhancedMarkovEngine:
     ) -> MatchEvent:
         """Handle pass with enhanced accuracy and decision making."""
 
-        # Get passer
-        passer = self._base_engine._select_player(match_state, team, "mid")
+        # Get passer based on zone (not just midfield)
+        passer = self._base_engine._select_passer_by_zone(match_state, team, game_state.zone)
         if passer:
             passer.passes_attempted += 1
             passer.update_fatigue(0.3)
@@ -788,11 +1186,11 @@ class EnhancedMarkovEngine:
 
         if score_diff < 0 and game_state.minute > 70:
             success_prob = (
-                0.65 + (attacker_score - defender_score) / 150 + overall_strength_diff / 100
+                0.65 + (attacker_score - defender_score) / 150 + overall_strength_diff / 60
             )
         else:
             success_prob = (
-                0.65 + (attacker_score - defender_score) / 120 + overall_strength_diff / 80
+                0.65 + (attacker_score - defender_score) / 120 + overall_strength_diff / 50
             )
 
         if team == "home":
@@ -810,6 +1208,10 @@ class EnhancedMarkovEngine:
 
             if passer:
                 passer.passes_completed += 1
+
+                # Track key passes (passes in attacking zones)
+                if new_zone in [PitchZone.AWAY_THIRD, PitchZone.AWAY_BOX]:
+                    passer.key_passes += 1
 
                 # Track assists
                 if new_zone in [PitchZone.AWAY_BOX, PitchZone.AWAY_THIRD]:
@@ -837,6 +1239,12 @@ class EnhancedMarkovEngine:
             )
         else:
             # Intercepted
+            defending_team = "away" if team == "home" else "home"
+            interceptor = self._base_engine._select_player(match_state, defending_team, "def")
+            if interceptor:
+                interceptor.interceptions += 1
+                interceptor.update_fatigue(0.4)
+
             game_state.possession = Possession.AWAY if team == "home" else Possession.HOME
             game_state.consecutive_passes = 0
 
@@ -945,18 +1353,14 @@ class EnhancedMarkovEngine:
         if game_state.minute > 80 and abs(score_diff) <= 1:
             score_pressure = 0.3
 
-        # === 增强球队整体实力差距对射门的影响 ===
-        # 强队面对弱队时，射门质量更高
         overall_strength_diff = att_strength["overall"] - def_strength["overall"]
-        # 调整射手和门将的有效能力值 - 增强效果
-        shooter_ca += overall_strength_diff * 0.25  # 强队射手获得更大加成
+        shooter_ca += overall_strength_diff * 0.40
         shooter_ca = max(45, min(100, shooter_ca))
 
-        gk_ca -= overall_strength_diff * 0.20  # 弱队门将面对强队时表现下降更多
+        gk_ca -= overall_strength_diff * 0.35
         gk_ca = max(35, min(100, gk_ca))
 
-        # 强队在面对弱队时，防守压力更小（对方防守组织差）
-        defensive_pressure *= max(0.5, 1.0 - overall_strength_diff / 100)
+        defensive_pressure *= max(0.4, 1.0 - overall_strength_diff / 80)
 
         # Calculate xG with all factors
         shot_result = compute_shot_xg(
@@ -1306,17 +1710,37 @@ class EnhancedMarkovEngine:
                     rating += stats.blocks * 0.12
                     rating += stats.clearances * 0.06
 
-                # Goalkeeper stats
+                # Goalkeeper stats - balanced rating system
                 if position == "GK":
-                    if stats.goals_conceded == 0 and stats.minutes_played >= 90:
-                        rating = 8.0
-                    else:
-                        rating += stats.saves * 0.12
-                        rating -= stats.goals_conceded * 1.2
+                    # Start from base rating instead of auto-8.0
+                    gk_base = 6.0
 
-                        # Penalties saved bonus
-                        if stats.saves > 0 and stats.goals_conceded < 3:
-                            rating += 0.3
+                    # Saves bonus (capped to prevent inflation)
+                    gk_base += min(stats.saves * 0.08, 0.8)
+
+                    # Dynamic clean sheet bonus based on performance
+                    if stats.goals_conceded == 0 and stats.minutes_played >= 90:
+                        if stats.saves >= 6:
+                            gk_base += 1.5  # Outstanding performance
+                        elif stats.saves >= 3:
+                            gk_base += 1.2  # Very good
+                        else:
+                            gk_base += 1.0  # Decent clean sheet
+                    else:
+                        # Goals conceded penalty (diminishing for multiple)
+                        if stats.goals_conceded == 1:
+                            gk_base -= 1.0
+                        elif stats.goals_conceded == 2:
+                            gk_base -= 1.8
+                        else:
+                            gk_base -= 2.0 + (stats.goals_conceded - 2) * 0.5
+
+                    # Pass accuracy bonus (modern GKs need distribution)
+                    if stats.passes_attempted > 0:
+                        pass_acc = stats.passes_completed / stats.passes_attempted
+                        gk_base += (pass_acc - 0.80) * 1.0
+
+                    rating = gk_base
 
                 # Match result bonus
                 if is_winner:

@@ -134,20 +134,27 @@ def get_squad_tool(
             p for p in players if position.upper() in str(getattr(p, "position", "")).upper()
         ]
 
-    # Sort players
-    sort_key = {
-        "value": lambda p: getattr(p, "market_value", 0),
-        "ability": lambda p: getattr(p, "current_ability", 0),
-        "potential": lambda p: getattr(p, "potential_ability", 0),
-        "age": lambda p: getattr(p, "age", 0),
-        "wage": lambda p: getattr(p, "weekly_wage", 0),
-    }.get(sort_by, lambda p: getattr(p, "current_ability", 0))
-
-    sorted_players = sorted(players, key=sort_key, reverse=True)
-
-    # Apply limit
+    sorted_by_ca = sorted(players, key=lambda p: getattr(p, "current_ability", 0), reverse=True)
+    top_players = sorted_by_ca[:25]
+    young_potentials = [
+        p
+        for p in sorted_by_ca[25:]
+        if getattr(p, "age", 30) <= 21 and getattr(p, "potential_ability", 0) >= 80
+    ]
+    young_potentials = sorted(
+        young_potentials, key=lambda p: getattr(p, "potential_ability", 0), reverse=True
+    )[:5]
+    selected_players = top_players + young_potentials
+    if sort_by != "ability":
+        sort_key = {
+            "value": lambda p: getattr(p, "market_value", 0),
+            "potential": lambda p: getattr(p, "potential_ability", 0),
+            "age": lambda p: getattr(p, "age", 0),
+            "wage": lambda p: getattr(p, "weekly_wage", 0),
+        }.get(sort_by, lambda p: getattr(p, "current_ability", 0))
+        selected_players = sorted(selected_players, key=sort_key, reverse=True)
     if limit:
-        sorted_players = sorted_players[:limit]
+        selected_players = selected_players[:limit]
 
     # Calculate squad stats
     total_value = sum(getattr(p, "market_value", 0) for p in players)
@@ -169,7 +176,7 @@ def get_squad_tool(
                 "market_value": getattr(p, "market_value", 0),
                 "weekly_wage": getattr(p, "weekly_wage", 0),
             }
-            for p in sorted_players
+            for p in selected_players
         ],
     }
 

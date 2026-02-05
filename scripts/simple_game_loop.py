@@ -9,7 +9,7 @@ from datetime import date
 from typing import Optional
 
 from fm_manager.engine.calendar import Calendar, create_league_calendar, Match
-from fm_manager.engine.match_engine_markov import MarkovMatchEngine
+from fm_manager.engine.match_engine_markov import EnhancedMarkovEngine
 from fm_manager.data.cleaned_data_loader import load_for_match_engine, ClubDataFull
 
 
@@ -35,7 +35,7 @@ class SimpleGameLoop:
         self.calendar = create_league_calendar(club.league, team_names, season_year)
 
         # Initialize match engine
-        self.match_engine = MarkovMatchEngine()
+        self.match_engine = EnhancedMarkovEngine()
 
         # Game state
         self.current_date = date(season_year, 8, 1)
@@ -49,14 +49,21 @@ class SimpleGameLoop:
         ]
 
     def simulate_week(self) -> list[dict]:
-        """Simulate all matches for current week."""
+        """Simulate all matches for current week using Markov match engine."""
         results = []
+        clubs, _ = load_for_match_engine()
 
         for match in self.calendar.get_current_matches():
-            # Simulate match using Markov engine
-            # For now, use simple random scores
-            home_goals = random.randint(0, 4)
-            away_goals = random.randint(0, 3)
+            home_club = clubs.get(match.home_team)
+            away_club = clubs.get(match.away_team)
+
+            if home_club and away_club:
+                match_result = self.match_engine.simulate(home_club.players, away_club.players)
+                home_goals = match_result.home_goals
+                away_goals = match_result.away_goals
+            else:
+                home_goals = random.randint(0, 4)
+                away_goals = random.randint(0, 3)
 
             match.play(home_goals, away_goals)
 
