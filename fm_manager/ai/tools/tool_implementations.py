@@ -181,6 +181,36 @@ def get_squad_tool(
     }
 
 
+def _normalize_name(name: str) -> str:
+    """Normalize player name for better matching."""
+    # Remove commas and extra spaces
+    name = name.replace(",", " ")
+    # Split into parts and sort alphabetically for order-independent matching
+    parts = [p.strip().lower() for p in name.split() if p.strip()]
+    return " ".join(sorted(parts))
+
+
+def _match_player_name(query: str, player_name: str) -> bool:
+    """Match player name with support for different orderings."""
+    query_lower = query.lower().strip()
+    player_lower = player_name.lower().strip()
+
+    # Direct substring match
+    if query_lower in player_lower or player_lower in query_lower:
+        return True
+
+    # Normalize and compare
+    query_normalized = _normalize_name(query_lower)
+    player_normalized = _normalize_name(player_lower)
+
+    # Check if all query parts are in player name
+    query_parts = set(query_normalized.split())
+    player_parts = set(player_normalized.split())
+
+    # Match if all query parts are found in player name
+    return query_parts.issubset(player_parts)
+
+
 def get_player_details_tool(player_name: str) -> Dict[str, Any]:
     """
     Get detailed information about a specific player.
@@ -194,7 +224,7 @@ def get_player_details_tool(player_name: str) -> Dict[str, Any]:
     # Search in current squad first
     if _current_club:
         for player in getattr(_current_club, "players", []):
-            if player_name.lower() in getattr(player, "full_name", "").lower():
+            if _match_player_name(player_name, getattr(player, "full_name", "")):
                 return {
                     "found": True,
                     "in_squad": True,
@@ -216,7 +246,7 @@ def get_player_details_tool(player_name: str) -> Dict[str, Any]:
     matches = []
 
     for player in players.values():
-        if player_name.lower() in getattr(player, "full_name", "").lower():
+        if _match_player_name(player_name, getattr(player, "full_name", "")):
             matches.append(player)
 
     if not matches:
@@ -746,6 +776,108 @@ def register_all_tools():
                 ToolParameter("save_name", "string", "Custom save name (optional)", required=False),
             ],
             handler=save_game_tool,
+        )
+    )
+
+    from fm_manager.ai.tools.transfer_tools import (
+        make_transfer_offer_tool,
+        list_player_for_transfer_tool,
+        view_transfer_list_tool,
+        view_my_offers_tool,
+        respond_to_offer_tool,
+        withdraw_offer_tool,
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="make_transfer_offer",
+            description="Submit a transfer offer for a player",
+            parameters=[
+                ToolParameter("player_name", "string", "Name of the player to buy", required=True),
+                ToolParameter("offer_amount", "integer", "Offer amount in pounds", required=True),
+                ToolParameter(
+                    "offer_type",
+                    "string",
+                    "Type of offer (buy, loan, sell)",
+                    required=False,
+                    default="buy",
+                ),
+            ],
+            handler=make_transfer_offer_tool,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="list_player_for_transfer",
+            description="List one of your players on the transfer market",
+            parameters=[
+                ToolParameter("player_name", "string", "Name of the player to sell", required=True),
+                ToolParameter(
+                    "asking_price", "integer", "Asking price in pounds (optional)", required=False
+                ),
+            ],
+            handler=list_player_for_transfer_tool,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="view_transfer_market",
+            description="View available players on the transfer market",
+            parameters=[
+                ToolParameter(
+                    "position",
+                    "string",
+                    "Filter by position (e.g., GK, CB, CM, ST)",
+                    required=False,
+                ),
+                ToolParameter("max_price", "integer", "Maximum price in pounds", required=False),
+                ToolParameter(
+                    "limit", "integer", "Maximum number of results", required=False, default=20
+                ),
+            ],
+            handler=view_transfer_list_tool,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="view_transfer_offers",
+            description="View incoming and outgoing transfer offers",
+            parameters=[],
+            handler=view_my_offers_tool,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="respond_to_transfer_offer",
+            description="Accept, reject, or counter a transfer offer",
+            parameters=[
+                ToolParameter("offer_id", "string", "ID of the offer", required=True),
+                ToolParameter(
+                    "action", "string", "Action to take (accept, reject, counter)", required=True
+                ),
+                ToolParameter(
+                    "counter_amount",
+                    "integer",
+                    "Counter offer amount (for counter action)",
+                    required=False,
+                ),
+            ],
+            handler=respond_to_offer_tool,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="withdraw_transfer_offer",
+            description="Withdraw a transfer offer you made",
+            parameters=[
+                ToolParameter("offer_id", "string", "ID of the offer to withdraw", required=True),
+            ],
+            handler=withdraw_offer_tool,
         )
     )
 

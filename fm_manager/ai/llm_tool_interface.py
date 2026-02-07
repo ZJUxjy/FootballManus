@@ -4,7 +4,7 @@ Replaces the old intent-based system with a flexible tool-calling architecture.
 """
 
 import json
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
 
 from fm_manager.engine.llm_client import LLMClient, LLMProvider
@@ -22,6 +22,15 @@ class ToolCallResult:
     result: Any
     success: bool
     error: Optional[str] = None
+    iteration: int = 1
+
+
+@dataclass
+class SearchAdjustment:
+    original_params: Dict[str, Any]
+    adjusted_params: Dict[str, Any]
+    reason: str
+    iteration: int
 
 
 @dataclass
@@ -131,6 +140,8 @@ Your response should:
 
         for call in tool_calls:
             tool_name = call.get("tool")
+            if not tool_name:
+                continue
             parameters = call.get("parameters", {})
 
             try:
@@ -179,12 +190,100 @@ Your response should:
 
         return "\n".join(lines)
 
-    async def process_query(self, user_query: str) -> str:
+    def _is_empty_search_result(self, result: Any) -> bool:
+        """Check if search result is empty and needs adjustment."""
+        if isinstance(result, dict):
+            # Check for empty player list or zero results
+            if "players" in result and len(result["players"]) == 0:
+                return True
+            if "total" in result and result["total"] == 0:
+                return True
+            if "total_players" in result and result["total_players"] == 0:
+                return True
+        elif isinstance(result, list) and len(result) == 0:
+            return True
+        return False
+
+    def _adjust_search_params(
+        self, params: Dict[str, Any], iteration: int
+    ) -> Tuple[Dict[str, Any], str]:
+        """Adjust search parameters for next iteration."""
+        adjusted = params.copy()
+        adjustments = []
+
+        # Gradually relax constraints
+        if "min_potential" in adjusted and iteration == 1:
+            old_val = adjusted["min_potential"]
+            adjusted["min_potential"] = max(70, old_val - 10)
+            adjustments.append(f"降低潜力要求从 {old_val} 到 {adjusted['min_potential']}")
+
+        elif "min_potential" in adjusted and iteration == 2:
+            old_val = adjusted["min_potential"]
+            adjusted["min_potential"] = max(60, old_val - 10)
+            adjustments.append(f"进一步降低潜力要求从 {old_val} 到 {adjusted['min_potential']}")
+
+        elif "max_age" in adjusted and iteration <= 2:
+            old_val = adjusted["max_age"]
+            adjusted["max_age"] = old_val + 2
+            adjustments.append(f"放宽年龄限制从 {old_val} 到 {adjusted['max_age']}")
+
+        elif "max_price" in adjusted and iteration <= 2:
+            old_val = adjusted["max_price"]
+            adjusted["max_price"] = int(old_val * 1.2)
+            adjustments.append(f"提高预算上限从 £{old_val:,} 到 £{adjusted['max_price']:,}")
+
+        if not adjustments:
+            adjustments.append("放宽所有搜索条件")
+            # Remove restrictive filters
+            for key in ["min_potential", "min_ability"]:
+                if key in adjusted:
+                    del adjusted[key]
+
+        return adjusted, "; ".join(adjustments)
+
+    def _build_iterative_search_prompt(
+        self,
+        user_query: str,
+        all_results: List[ToolCallResult],
+        adjustments: List[SearchAdjustment],
+    ) -> str:
+        """Build prompt for iterative search with all attempts."""
+        lines = [
+            f"Original user query: {user_query}",
+            "",
+            "Search history:",
+        ]
+
+        for i, (result, adj) in enumerate(zip(all_results, adjustments)):
+            lines.append(f"\nAttempt {i + 1}:")
+            lines.append(f"  Parameters: {json.dumps(adj.original_params, ensure_ascii=False)}")
+            lines.append(f"  Adjustment: {adj.reason}")
+            lines.append(
+                f"  Results: {len(result.result.get('players', [])) if isinstance(result.result, dict) else 'N/A'} players found"
+            )
+
+        lines.append("\n" + "=" * 50)
+        lines.append("\nFinal results to present to user:")
+        if all_results:
+            final_result = all_results[-1].result
+            if isinstance(final_result, dict) and "players" in final_result:
+                lines.append(f"Found {len(final_result['players'])} players")
+            else:
+                lines.append(json.dumps(final_result, ensure_ascii=False, indent=2)[:500])
+
+        lines.append("\nProvide a helpful response summarizing the search results.")
+        lines.append("If multiple attempts were made, briefly mention the adjustments.")
+        lines.append("Respond in the same language as the original query.")
+
+        return "\n".join(lines)
+
+    async def process_query(self, user_query: str, max_iterations: int = 3) -> str:
         """
-        Process a user query using tool calling.
+        Process a user query using tool calling with multi-step search support.
 
         Args:
             user_query: The user's natural language query
+            max_iterations: Maximum number of search attempts (default: 3)
 
         Returns:
             A helpful response based on tool execution
@@ -211,18 +310,86 @@ Your response should:
         # Execute tool calls
         tool_results = self._execute_tool_calls(tool_calls)
 
-        # Build follow-up prompt with results
-        follow_up_prompt = self._build_follow_up_prompt(user_query, tool_results)
+        # Check if any search results are empty and need iterative adjustment
+        all_results = list(tool_results)
+        adjustments = []
+        iteration = 1
 
-        # Second LLM call - generate final response based on tool results
+        for result in tool_results:
+            if result.tool_name == "search_players" and self._is_empty_search_result(result.result):
+                # Iteratively adjust search params until we find results or hit max iterations
+                current_params = result.parameters.copy()
+
+                while iteration < max_iterations and self._is_empty_search_result(result.result):
+                    # Adjust parameters
+                    adjusted_params, reason = self._adjust_search_params(current_params, iteration)
+
+                    adjustments.append(
+                        SearchAdjustment(
+                            original_params=current_params.copy(),
+                            adjusted_params=adjusted_params.copy(),
+                            reason=reason,
+                            iteration=iteration,
+                        )
+                    )
+
+                    # Execute new search
+                    try:
+                        new_result = self.tool_registry.execute("search_players", adjusted_params)
+                        all_results.append(
+                            ToolCallResult(
+                                tool_name="search_players",
+                                parameters=adjusted_params,
+                                result=new_result,
+                                success=True,
+                                iteration=iteration + 1,
+                            )
+                        )
+                        result = all_results[-1]
+                        current_params = adjusted_params
+                        iteration += 1
+                    except Exception as e:
+                        break
+
+        # Build final prompt with all search history
+        if adjustments:
+            final_prompt = self._build_iterative_search_prompt(user_query, all_results, adjustments)
+        else:
+            final_prompt = self._build_follow_up_prompt(user_query, all_results)
+
+        final_system_prompt = (
+            system_prompt
+            + """
+
+IMPORTANT: Based on the tool results provided above, generate a natural language response to the user.
+DO NOT output any tool call blocks (```tool). 
+DO NOT make additional tool calls.
+Simply provide a helpful, conversational response summarizing the results."""
+        )
+
         response2 = self.llm.generate(
-            prompt=follow_up_prompt,
-            system_prompt=system_prompt,
+            prompt=final_prompt,
+            system_prompt=final_system_prompt,
             max_tokens=1500,
             temperature=0.5,
         )
 
-        return response2.content
+        content2 = response2.content
+        if "```tool" in content2:
+            additional_calls = self._extract_tool_calls(content2)
+            if additional_calls:
+                additional_results = self._execute_tool_calls(additional_calls)
+                all_results.extend(additional_results)
+                final_prompt = self._build_follow_up_prompt(user_query, all_results)
+                response2 = self.llm.generate(
+                    prompt=final_prompt,
+                    system_prompt=final_system_prompt,
+                    max_tokens=1500,
+                    temperature=0.5,
+                )
+                content2 = response2.content
+
+        return content2
 
     def process_query_sync(self, user_query: str) -> str:
         """Synchronous version of process_query."""

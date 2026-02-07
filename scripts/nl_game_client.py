@@ -31,15 +31,10 @@ from fm_manager.engine.llm_client import LLMClient, LLMProvider
 from fm_manager.engine.calendar import Calendar, create_league_calendar, Match
 from fm_manager.engine.match_engine_markov import EnhancedMarkovEngine
 from fm_manager.engine.transfer_market import TransferMarket
+from fm_manager.engine.ai_manager_lightweight import AIManagerRegistry, AIManager
 from fm_manager.ai.tools.transfer_tools import (
     set_transfer_market,
     set_current_club_id,
-    make_transfer_offer_tool,
-    list_player_for_transfer_tool,
-    view_transfer_list_tool,
-    view_my_offers_tool,
-    respond_to_offer_tool,
-    withdraw_offer_tool,
 )
 from fm_manager.core.game_save import SaveLoadManager, format_save_info
 
@@ -174,6 +169,8 @@ class EnhancedNLGameInterface:
         self.transfer_market: Optional[TransferMarket] = None
 
         self.save_manager = SaveLoadManager()
+
+        self.ai_registry: Optional[AIManagerRegistry] = None
 
         # Detect locale
         self.locale = self._detect_locale()
@@ -402,8 +399,8 @@ class EnhancedNLGameInterface:
         # Initialize calendar for the league
         await self._init_calendar()
 
-        # Initialize transfer market
         await self._init_transfer_market()
+        await self._init_ai_managers()
 
         budget = getattr(self.current_club, "balance", 0) or getattr(
             self.current_club, "transfer_budget", 0
@@ -443,6 +440,13 @@ class EnhancedNLGameInterface:
 
         set_transfer_market(self.transfer_market)
         set_current_club_id(getattr(self.current_club, "id", 0))
+
+    async def _init_ai_managers(self):
+        self.ai_registry = AIManagerRegistry()
+
+        for club_id, club in self.all_clubs.items():
+            if club_id != getattr(self.current_club, "id", None):
+                self.ai_registry.create_manager_for_club(club_id, club.name)
 
     def get_user_matches(self) -> list[Match]:
         """Get matches involving user's club for current week."""
