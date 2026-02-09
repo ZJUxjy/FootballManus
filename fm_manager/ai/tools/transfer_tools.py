@@ -11,6 +11,30 @@ _transfer_market: Optional[TransferMarket] = None
 _current_club_id: Optional[int] = None
 
 
+def _normalize_name(name: str) -> str:
+    """Normalize player name for better matching."""
+    name = name.replace(",", " ")
+    parts = [p.strip().lower() for p in name.split() if p.strip()]
+    return " ".join(sorted(parts))
+
+
+def _match_player_name(query: str, player_name: str) -> bool:
+    """Match player name with support for different orderings."""
+    query_lower = query.lower().strip()
+    player_lower = player_name.lower().strip()
+
+    if query_lower in player_lower or player_lower in query_lower:
+        return True
+
+    query_normalized = _normalize_name(query_lower)
+    player_normalized = _normalize_name(player_lower)
+
+    query_parts = set(query_normalized.split())
+    player_parts = set(player_normalized.split())
+
+    return query_parts.issubset(player_parts)
+
+
 def set_transfer_market(market: TransferMarket) -> None:
     """Set the global transfer market instance."""
     global _transfer_market
@@ -37,7 +61,7 @@ def make_transfer_offer_tool(
     clubs, players = load_for_match_engine()
     target_player = None
     for player in players.values():
-        if player_name.lower() in player.full_name.lower():
+        if _match_player_name(player_name, player.full_name):
             target_player = player
             break
 
@@ -84,7 +108,7 @@ def list_player_for_transfer_tool(
     clubs, players = load_for_match_engine()
     target_player = None
     for player in players.values():
-        if player_name.lower() in player.full_name.lower():
+        if _match_player_name(player_name, player.full_name):
             if getattr(player, "club_id", None) == _current_club_id:
                 target_player = player
                 break

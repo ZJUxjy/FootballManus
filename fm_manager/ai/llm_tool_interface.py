@@ -429,8 +429,6 @@ Simply provide a helpful, conversational response summarizing the results."""
         response2 = self.llm.generate(
             prompt=final_prompt,
             system_prompt=final_system_prompt,
-            max_tokens=1500,
-            temperature=0.5,
         )
 
         content2 = response2.content
@@ -443,8 +441,6 @@ Simply provide a helpful, conversational response summarizing the results."""
                 response2 = self.llm.generate(
                     prompt=final_prompt,
                     system_prompt=final_system_prompt,
-                    max_tokens=1500,
-                    temperature=0.5,
                 )
                 content2 = response2.content
 
