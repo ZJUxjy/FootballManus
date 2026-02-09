@@ -52,6 +52,8 @@ class LLMToolInterface:
         self.llm = llm_client
         self.tool_registry = get_tool_registry()
         self.current_club: Optional[ClubDataFull] = None
+        self.conversation_history: List[Dict[str, Any]] = []
+        self.max_history_turns = 10
 
     def set_club(self, club: Optional[ClubDataFull]):
         """Set the current club context."""
@@ -241,6 +243,53 @@ Your response should:
 
         return adjusted, "; ".join(adjustments)
 
+    def _build_context_prompt(self) -> str:
+        """Build conversation context from history."""
+        if not self.conversation_history:
+            return ""
+
+        lines = ["\n=== Conversation History ==="]
+
+        for i, turn in enumerate(self.conversation_history[-self.max_history_turns :]):
+            lines.append(f"\nTurn {i + 1}:")
+            lines.append(f"User: {turn['user']}")
+
+            if turn.get("tool_calls"):
+                for tool_result in turn["tool_calls"]:
+                    if tool_result.success:
+                        result_summary = self._summarize_result(
+                            tool_result.tool_name, tool_result.result
+                        )
+                        lines.append(f"[Tool: {tool_result.tool_name}] {result_summary}")
+
+            assistant_response = turn.get("assistant", "")
+            if assistant_response:
+                lines.append(f"Assistant: {assistant_response[:200]}...")
+
+        lines.append("\n=== End of History ===\n")
+        return "\n".join(lines)
+
+    def _summarize_result(self, tool_name: str, result: Any) -> str:
+        """Summarize tool result for context."""
+        if not isinstance(result, dict):
+            return str(result)[:100]
+
+        if "players" in result and isinstance(result["players"], list):
+            count = len(result["players"])
+            if count > 0:
+                names = [p.get("name", "Unknown") for p in result["players"][:3]]
+                return f"Found {count} players: {', '.join(names)}{'...' if count > 3 else ''}"
+            return "No players found"
+
+        if "player" in result and isinstance(result["player"], dict):
+            name = result["player"].get("name", "Unknown")
+            return f"Player: {name}"
+
+        if "total_value" in result:
+            return f"Squad value: £{result['total_value']:,}"
+
+        return str(result)[:100]
+
     def _build_iterative_search_prompt(
         self,
         user_query: str,
@@ -290,12 +339,16 @@ Your response should:
         """
         system_prompt = self._build_system_prompt()
 
+        # Build context from conversation history
+        context_prompt = self._build_context_prompt()
+        full_prompt = (
+            f"{context_prompt}\nCurrent user query: {user_query}" if context_prompt else user_query
+        )
+
         # First LLM call - decide which tools to call
         response1 = self.llm.generate(
-            prompt=user_query,
+            prompt=full_prompt,
             system_prompt=system_prompt,
-            max_tokens=1000,
-            temperature=0.3,
         )
 
         content1 = response1.content
@@ -304,12 +357,18 @@ Your response should:
         tool_calls = self._extract_tool_calls(content1)
 
         if not tool_calls:
-            # No tool calls, return the LLM response directly
+            self.conversation_history.append(
+                {
+                    "user": user_query,
+                    "assistant": content1,
+                    "tool_calls": [],
+                    "timestamp": __import__("datetime").datetime.now().isoformat(),
+                }
+            )
             return content1
 
         # Execute tool calls
         tool_results = self._execute_tool_calls(tool_calls)
-
         # Check if any search results are empty and need iterative adjustment
         all_results = list(tool_results)
         adjustments = []
@@ -388,6 +447,18 @@ Simply provide a helpful, conversational response summarizing the results."""
                     temperature=0.5,
                 )
                 content2 = response2.content
+
+        self.conversation_history.append(
+            {
+                "user": user_query,
+                "assistant": content2,
+                "tool_calls": all_results,
+                "timestamp": __import__("datetime").datetime.now().isoformat(),
+            }
+        )
+
+        if len(self.conversation_history) > self.max_history_turns * 2:
+            self.conversation_history = self.conversation_history[-self.max_history_turns :]
 
         return content2
 

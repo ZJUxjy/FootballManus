@@ -183,7 +183,7 @@ class LLMClient:
         api_key: str | None = None,
         base_url: str | None = None,
         temperature: float = 0.7,
-        max_tokens: int = 1000,
+        max_tokens: int = 32552,
         enable_cache: bool = True,
         max_retries: int = 3,
     ):
