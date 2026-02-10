@@ -1,0 +1,479 @@
+# Youth Generation Configuration
+# Comprehensive configuration for youth player generation across 47 countries
+
+# Country-specific youth configurations
+# Each country defines pool size, youth rating (1-200), and attribute modifiers
+countries:
+  # Major Football Nations (Top Tier)
+  ENG:
+    name: England
+    pool_size: 2000000
+    youth_rating: 145
+    attribute_modifiers:
+      work_rate: 3
+      determination: 2
+
+  ESP:
+    name: Spain
+    pool_size: 1500000
+    youth_rating: 140
+    attribute_modifiers:
+      technique: 4
+      passing: 3
+      vision: 2
+
+  GER:
+    name: Germany
+    pool_size: 1500000
+    youth_rating: 142
+    attribute_modifiers:
+      tactical_awareness: 3
+      work_rate: 2
+
+  FRA:
+    name: France
+    pool_size: 1400000
+    youth_rating: 145
+    attribute_modifiers:
+      pace: 3
+      athleticism: 3
+      technique: 2
+
+  ITA:
+    name: Italy
+    pool_size: 1300000
+    youth_rating: 138
+    attribute_modifiers:
+      tactical_awareness: 4
+      positioning: 3
+      defending: 2
+
+  BRA:
+    name: Brazil
+    pool_size: 2000000
+    youth_rating: 150
+    attribute_modifiers:
+      technique: 5
+      flair: 4
+      dribbling: 3
+
+  ARG:
+    name: Argentina
+    pool_size: 1200000
+    youth_rating: 145
+    attribute_modifiers:
+      technique: 4
+      flair: 3
+      vision: 2
+
+  # Secondary Football Nations (Strong Youth Systems)
+  NED:
+    name: Netherlands
+    pool_size: 800000
+    youth_rating: 135
+    attribute_modifiers:
+      technique: 3
+      vision: 2
+      tactical_awareness: 2
+
+  POR:
+    name: Portugal
+    pool_size: 700000
+    youth_rating: 135
+    attribute_modifiers:
+      technique: 3
+      flair: 2
+
+  BEL:
+    name: Belgium
+    pool_size: 500000
+    youth_rating: 130
+    attribute_modifiers:
+      technique: 3
+      tactical_awareness: 2
+
+  URU:
+    name: Uruguay
+    pool_size: 400000
+    youth_rating: 132
+    attribute_modifiers:
+      determination: 3
+      work_rate: 2
+      toughness: 2
+
+  CRO:
+    name: Croatia
+    pool_size: 350000
+    youth_rating: 128
+    attribute_modifiers:
+      technique: 3
+      vision: 2
+
+  DEN:
+    name: Denmark
+    pool_size: 350000
+    youth_rating: 125
+    attribute_modifiers:
+      work_rate: 3
+      teamwork: 2
+
+  SUI:
+    name: Switzerland
+    pool_size: 320000
+    youth_rating: 120
+    attribute_modifiers:
+      tactical_awareness: 2
+      work_rate: 2
+
+  AUT:
+    name: Austria
+    pool_size: 300000
+    youth_rating: 118
+    attribute_modifiers:
+      work_rate: 2
+      tactical_awareness: 1
+
+  SWE:
+    name: Sweden
+    pool_size: 350000
+    youth_rating: 115
+    attribute_modifiers:
+      physical: 2
+      aerial: 2
+
+  NOR:
+    name: Norway
+    pool_size: 300000
+    youth_rating: 115
+    attribute_modifiers:
+      physical: 3
+      aerial: 2
+
+  POL:
+    name: Poland
+    pool_size: 600000
+    youth_rating: 118
+    attribute_modifiers:
+      finishing: 2
+      physical: 1
+
+  UKR:
+    name: Ukraine
+    pool_size: 550000
+    youth_rating: 115
+    attribute_modifiers:
+      technique: 2
+      physical: 1
+
+  RUS:
+    name: Russia
+    pool_size: 900000
+    youth_rating: 110
+    attribute_modifiers:
+      physical: 2
+      aerial: 2
+
+  TUR:
+    name: Turkey
+    pool_size: 800000
+    youth_rating: 112
+    attribute_modifiers:
+      technique: 2
+      flair: 1
+
+  SRB:
+    name: Serbia
+    pool_size: 400000
+    youth_rating: 118
+    attribute_modifiers:
+      technique: 2
+      physical: 1
+
+  CZE:
+    name: Czech Republic
+    pool_size: 380000
+    youth_rating: 115
+    attribute_modifiers:
+      tactical_awareness: 2
+      work_rate: 1
+
+  GRE:
+    name: Greece
+    pool_size: 350000
+    youth_rating: 110
+    attribute_modifiers:
+      tactical_awareness: 2
+      defending: 1
+
+  SCO:
+    name: Scotland
+    pool_size: 400000
+    youth_rating: 112
+    attribute_modifiers:
+      determination: 2
+      work_rate: 1
+
+  WAL:
+    name: Wales
+    pool_size: 200000
+    youth_rating: 110
+    attribute_modifiers:
+      physical: 1
+      pace: 1
+
+  # Growing/Developing Football Nations
+  USA:
+    name: United States
+    pool_size: 800000
+    youth_rating: 115
+    attribute_modifiers:
+      athleticism: 3
+      pace: 2
+      physical: 2
+
+  MEX:
+    name: Mexico
+    pool_size: 1000000
+    youth_rating: 118
+    attribute_modifiers:
+      technique: 2
+      flair: 1
+
+  JPN:
+    name: Japan
+    pool_size: 600000
+    youth_rating: 120
+    attribute_modifiers:
+      work_rate: 3
+      tactical_awareness: 2
+      discipline: 2
+
+  KOR:
+    name: South Korea
+    pool_size: 500000
+    youth_rating: 118
+    attribute_modifiers:
+      work_rate: 3
+      pace: 2
+      determination: 2
+
+  CHN:
+    name: China
+    pool_size: 200000
+    youth_rating: 95
+    attribute_modifiers:
+      work_rate: 1
+
+  AUS:
+    name: Australia
+    pool_size: 350000
+    youth_rating: 110
+    attribute_modifiers:
+      physical: 2
+      aerial: 2
+
+  CAN:
+    name: Canada
+    pool_size: 280000
+    youth_rating: 108
+    attribute_modifiers:
+      athleticism: 2
+      pace: 1
+
+  IRN:
+    name: Iran
+    pool_size: 450000
+    youth_rating: 105
+    attribute_modifiers:
+      physical: 2
+      defending: 1
+
+  KSA:
+    name: Saudi Arabia
+    pool_size: 400000
+    youth_rating: 100
+    attribute_modifiers:
+      technique: 1
+
+  QAT:
+    name: Qatar
+    pool_size: 80000
+    youth_rating: 95
+    attribute_modifiers:
+      technique: 1
+
+  UAE:
+    name: UAE
+    pool_size: 100000
+    youth_rating: 92
+    attribute_modifiers: {}
+
+  EGY:
+    name: Egypt
+    pool_size: 700000
+    youth_rating: 108
+    attribute_modifiers:
+      technique: 2
+      flair: 1
+
+  MAR:
+    name: Morocco
+    pool_size: 450000
+    youth_rating: 110
+    attribute_modifiers:
+      technique: 2
+      flair: 1
+
+  TUN:
+    name: Tunisia
+    pool_size: 300000
+    youth_rating: 105
+    attribute_modifiers:
+      tactical_awareness: 1
+
+  NGA:
+    name: Nigeria
+    pool_size: 800000
+    youth_rating: 115
+    attribute_modifiers:
+      pace: 4
+      athleticism: 3
+      physical: 2
+
+  CMR:
+    name: Cameroon
+    pool_size: 350000
+    youth_rating: 110
+    attribute_modifiers:
+      physical: 3
+      pace: 2
+
+  GHA:
+    name: Ghana
+    pool_size: 400000
+    youth_rating: 108
+    attribute_modifiers:
+      physical: 2
+      pace: 1
+
+  CIV:
+    name: Ivory Coast
+    pool_size: 380000
+    youth_rating: 110
+    attribute_modifiers:
+      physical: 2
+      pace: 2
+
+  SEN:
+    name: Senegal
+    pool_size: 320000
+    youth_rating: 112
+    attribute_modifiers:
+      physical: 3
+      pace: 2
+
+  ALG:
+    name: Algeria
+    pool_size: 350000
+    youth_rating: 108
+    attribute_modifiers:
+      technique: 2
+
+  COL:
+    name: Colombia
+    pool_size: 600000
+    youth_rating: 118
+    attribute_modifiers:
+      technique: 2
+      flair: 1
+
+  CHI:
+    name: Chile
+    pool_size: 450000
+    youth_rating: 115
+    attribute_modifiers:
+      work_rate: 2
+      determination: 1
+
+  ECU:
+    name: Ecuador
+    pool_size: 380000
+    youth_rating: 108
+    attribute_modifiers:
+      pace: 2
+      physical: 1
+
+  PER:
+    name: Peru
+    pool_size: 350000
+    youth_rating: 105
+    attribute_modifiers:
+      technique: 1
+
+  PAR:
+    name: Paraguay
+    pool_size: 300000
+    youth_rating: 108
+    attribute_modifiers:
+      toughness: 2
+      determination: 1
+
+  BOL:
+    name: Bolivia
+    pool_size: 200000
+    youth_rating: 95
+    attribute_modifiers:
+      physical: 1
+
+  VEN:
+    name: Venezuela
+    pool_size: 350000
+    youth_rating: 100
+    attribute_modifiers:
+      pace: 1
+
+# Filtering configuration for selecting top youth players
+filtering:
+  # Top percentile by Current Ability (CA) to keep
+  ca_percentile: 0.1
+  # Top percentile by Potential Ability (PA) from remaining players
+  pa_percentile: 0.2
+  # Minimum players to retain per country regardless of filtering
+  min_players_per_country: 1000
+  # Minimum CA/PA ratio (CA must be >= this ratio * PA)
+  ca_pa_ratio_min: 0.4
+
+# Generation parameters for player attribute distributions
+generation:
+  # Age distribution: youth players aged 14-21, centered at 16
+  age:
+    mean: 16.0
+    std: 2.0
+    min_val: 14.0
+    max_val: 21.0
+  
+  # Current Ability distribution: most youth have CA 25-55
+  ca:
+    mean: 40.0
+    std: 15.0
+    min_val: 0.0
+    max_val: 100.0
+  
+  # Potential Ability distribution: most youth have PA 40-80
+  pa:
+    mean: 60.0
+    std: 20.0
+    min_val: 0.0
+    max_val: 200.0
+
+# Export configuration for generated youth players
+export:
+  # Supported export formats: json, csv, sqlite
+  formats:
+    - json
+    - csv
+    - sqlite
+  # Number of players per export batch (for memory efficiency)
+  batch_size: 10000
+  # Output directory for exported files
+  output_dir: data/youth_players/
