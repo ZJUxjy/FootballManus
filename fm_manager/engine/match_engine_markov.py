@@ -17,6 +17,15 @@ from enum import Enum, auto
 from typing import Optional, Callable, Dict, List, Tuple
 
 from fm_manager.engine.injury_chemistry_engine import InjuryEngine, ChemistryEngine
+from fm_manager.engine.tactics_engine import TacticsEngine, calculate_match_tactics_impact
+from fm_manager.core.models.tactics import (
+    TacticalInstructions,
+    PlayerRole,
+    PlayStyle,
+    DefensiveLine,
+    PressingIntensity,
+    PassingStyle,
+)
 
 
 # === Base classes (previously imported from match_engine_markov) ===
@@ -663,7 +672,7 @@ class TeamMomentum:
 
 @dataclass
 class TacticalFormation:
-    """Represents a team's tactical formation."""
+    """Represents a team's tactical formation with enhanced tactical options."""
 
     formation: str = "4-3-3"
 
@@ -671,6 +680,26 @@ class TacticalFormation:
     width: float = 1.0  # 0.8 = narrow, 1.2 = wide
     tempo: float = 1.0  # 0.7 = slow possession, 1.3 = fast counter
     risk_level: float = 1.0  # 0.7 = defensive, 1.3 = all-out attack
+
+    # Extended tactical system (T4)
+    instructions: Optional[TacticalInstructions] = None
+    player_roles: Dict[str, PlayerRole] = field(default_factory=dict)
+    play_style: Optional[PlayStyle] = None
+
+    def __post_init__(self):
+        """Initialize default instructions if not provided."""
+        if self.instructions is None:
+            self.instructions = TacticalInstructions()
+        if self.play_style is None:
+            self.play_style = PlayStyle.POSSESSION
+
+    def get_player_role(self, position: str) -> Optional[PlayerRole]:
+        """Get assigned role for a position."""
+        return self.player_roles.get(position)
+
+    def assign_role(self, position: str, role: PlayerRole) -> None:
+        """Assign a role to a position."""
+        self.player_roles[position] = role
 
     def get_width_modifier(self, zone: PitchZone) -> float:
         """Get width modifier based on formation and pitch zone."""
@@ -706,6 +735,7 @@ class EnhancedMarkovEngine:
 
         self.injury_engine = InjuryEngine(random_seed)
         self.chemistry_engine = ChemistryEngine(random_seed)
+        self.tactics_engine = TacticsEngine()
 
         self.home_chemistry: float = 50.0
         self.away_chemistry: float = 50.0
@@ -1006,9 +1036,13 @@ class EnhancedMarkovEngine:
         if "foul" in probs:
             probs["foul"] *= 1.0 - strength_factor * 0.15
 
-        # Tactical modifiers
+        # Tactical modifiers using tactics engine
         tempo = att_tactics.get_pressing_modifier(minute, score_diff)
         width = att_tactics.get_width_modifier(zone)
+
+        # Get additional tactical bonuses
+        passing_bonus = self.tactics_engine.calculate_passing_bonus(att_tactics)
+        attacking_bonus = self.tactics_engine.calculate_attacking_bonus(att_tactics)
 
         # Tempo affects pass/dribble balance
         if tempo > 1.1:  # Fast tempo
@@ -1021,6 +1055,13 @@ class EnhancedMarkovEngine:
         # Width affects zone progression
         if width > 1.0 and zone in [PitchZone.AWAY_THIRD, PitchZone.HOME_THIRD]:
             probs["dribble"] *= 1.3
+
+        # Apply passing bonus from tactics engine
+        probs["pass"] *= passing_bonus
+
+        # Apply attacking bonus to shots in attacking zones
+        if zone in [PitchZone.AWAY_THIRD, PitchZone.AWAY_BOX]:
+            probs["shot"] *= attacking_bonus
 
         # Momentum modifiers
         momentum_factor = def_momentum.get_overall_momentum()
@@ -1155,6 +1196,9 @@ class EnhancedMarkovEngine:
             passer.passes_attempted += 1
             passer.update_fatigue(0.3)
 
+        # Get tactics for passing calculations
+        att_tactics = self.home_tactics if team == "home" else self.away_tactics
+
         # Calculate success probability
         if passer:
             ca = getattr(passer.player, "current_ability", 70)
@@ -1166,9 +1210,20 @@ class EnhancedMarkovEngine:
             momentum = self.home_momentum if team == "home" else self.away_momentum
             momentum_mod = momentum.get_overall_momentum()
 
+            # Tactics impact on passing
+            passing_bonus = self.tactics_engine.calculate_passing_bonus(att_tactics)
+
+            # Player role bonus for passing
+            assigned_role = att_tactics.get_player_role(
+                str(getattr(passer.player, "position", ""))
+            )
+            role_bonus = self.tactics_engine.calculate_role_bonus(
+                passer.player, assigned_role, "passing"
+            )
+
             attacker_score = (
                 ca * 0.35 + passing * 0.35 + positioning * 0.20 + pace * 0.10
-            ) * momentum_mod
+            ) * momentum_mod * passing_bonus * role_bonus
         else:
             attacker_score = att_strength["mid"] * 0.9
 
@@ -1327,6 +1382,22 @@ class EnhancedMarkovEngine:
         momentum = self.home_momentum if attacking_team == "home" else self.away_momentum
         momentum_pressure = momentum.get_overall_momentum()
 
+        # Get tactics for shot calculations
+        att_tactics = self.home_tactics if attacking_team == "home" else self.away_tactics
+
+        # Tactics impact on attacking
+        attacking_bonus = self.tactics_engine.calculate_attacking_bonus(att_tactics)
+
+        # Player role bonus for shooting
+        assigned_role = None
+        if shooter:
+            assigned_role = att_tactics.get_player_role(
+                str(getattr(shooter.player, "position", ""))
+            )
+        role_bonus = self.tactics_engine.calculate_role_bonus(
+            shooter.player if shooter else None, assigned_role, "shooting"
+        )
+
         # Match stage pressure
         if self._match_stage == MatchStage.CLIMAX:
             pressure = 0.4
@@ -1381,6 +1452,9 @@ class EnhancedMarkovEngine:
 
         # Momentum affects finishing
         final_goal_prob = shot_result["goal"] * momentum_pressure
+
+        # Tactics impact on finishing
+        final_goal_prob *= attacking_bonus * role_bonus
 
         # Home advantage: +4% xG for home shots
         if attacking_team == "home":

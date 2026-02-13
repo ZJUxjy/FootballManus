@@ -17,6 +17,12 @@ from fm_manager.core.models.cup_competition import (
     CupRoundType,
     CupStatus,
 )
+from fm_manager.core.models.facility import (
+    Facility,
+    FacilityType,
+    FacilityLevelConfig,
+)
+from fm_manager.core.models.staff import Staff, StaffRole, StaffEffect
 
 __all__ = [
     # Player
@@ -49,4 +55,12 @@ __all__ = [
     "CupFormat",
     "CupRoundType",
     "CupStatus",
+    # Facility
+    "Facility",
+    "FacilityType",
+    "FacilityLevelConfig",
+    # Staff
+    "Staff",
+    "StaffRole",
+    "StaffEffect",
 ]

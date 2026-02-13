@@ -8,6 +8,7 @@ import asyncio
 import sys
 from typing import Optional
 
+import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt, IntPrompt, Confirm
@@ -19,6 +20,8 @@ from rich.text import Text
 from fm_manager.cli.client import GameClient
 from fm_manager.core.save_load import SaveLoadManager
 from fm_manager.core.database import get_db_session
+from fm_manager.cli.tactics_cli import tactics
+from fm_manager.cli.club_cli import club
 
 console = Console()
 
@@ -392,29 +395,51 @@ class FMManagerCLI:
 
 
 # ============================================================================
-# Entry Point
+# Click CLI Commands
 # ============================================================================
 
-def main():
-    """CLI entry point."""
-    import argparse
+@click.group(invoke_without_command=True)
+@click.option("--server", default="ws://localhost:8000", help="Server WebSocket URL")
+@click.pass_context
+def cli_main(ctx, server):
+    """FM Manager CLI - 足球经理游戏命令行工具
     
-    parser = argparse.ArgumentParser(description="FM Manager CLI Client")
-    parser.add_argument(
-        "--server",
-        default="ws://localhost:8000",
-        help="Server WebSocket URL"
-    )
-    
-    args = parser.parse_args()
-    
-    cli = FMManagerCLI(args.server)
-    
+    提供战术管理、俱乐部管理、多人游戏等功能。
+    不带子命令时启动交互式客户端。
+    """
+    if ctx.invoked_subcommand is None:
+        # 启动交互式 CLI
+        interactive_cli = FMManagerCLI(server)
+        try:
+            asyncio.run(interactive_cli.run())
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Goodbye![/yellow]")
+            sys.exit(0)
+
+
+@cli_main.command()
+def interactive():
+    """启动交互式客户端（与直接运行 fm-cli 相同）"""
+    cli = FMManagerCLI("ws://localhost:8000")
     try:
         asyncio.run(cli.run())
     except KeyboardInterrupt:
         console.print("\n[yellow]Goodbye![/yellow]")
         sys.exit(0)
+
+
+# 添加战术和俱乐部管理命令组
+cli_main.add_command(tactics)
+cli_main.add_command(club)
+
+
+# ============================================================================
+# Entry Point
+# ============================================================================
+
+def main():
+    """CLI entry point."""
+    cli_main()
 
 
 if __name__ == "__main__":

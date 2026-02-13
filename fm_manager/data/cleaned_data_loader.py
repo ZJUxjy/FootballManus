@@ -3,7 +3,7 @@
 import re
 import pandas as pd
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Tuple, List, Dict
 from pathlib import Path
 
 
@@ -155,7 +155,7 @@ class PlayerDataFull:
         }
         return pos_ratings.get(pos, self.current_ability)
 
-    def get_best_position(self) -> tuple[str, float]:
+    def get_best_position(self) -> Tuple[str, float]:
         positions = {
             "GK": self.rating_gk,
             "SW": self.rating_sw,
@@ -190,7 +190,7 @@ class ClubDataFull:
     wage_budget: int = 0
     stadium_capacity: int = 30000
     avg_attendance: int = 0
-    players: list[PlayerDataFull] = field(default_factory=list)
+    players: List[PlayerDataFull] = field(default_factory=list)
 
     @property
     def squad_size(self) -> int:
@@ -202,10 +202,10 @@ class CleanedDataLoaderV2:
         self.data_dir = Path(data_dir)
         self.players_df: Optional[pd.DataFrame] = None
         self.teams_df: Optional[pd.DataFrame] = None
-        self.clubs: dict[int, ClubDataFull] = {}
-        self.players: dict[int, PlayerDataFull] = {}
+        self.clubs: Dict[int, ClubDataFull] = {}
+        self.players: Dict[int, PlayerDataFull] = {}
 
-    def load_all(self) -> tuple[dict[int, ClubDataFull], dict[int, PlayerDataFull]]:
+    def load_all(self) -> Tuple[Dict[int, ClubDataFull], Dict[int, PlayerDataFull]]:
         self._load_players()
         self._load_teams()
         self._build_clubs()
@@ -334,22 +334,20 @@ class CleanedDataLoaderV2:
 
         print(f"Built {len(self.clubs)} clubs with squads")
 
-    def get_clubs_by_league(self, league_name: str) -> list[ClubDataFull]:
+    def get_clubs_by_league(self, league_name: str) -> List[ClubDataFull]:
         return [c for c in self.clubs.values() if c.league == league_name]
 
-    def get_available_leagues(self) -> list[str]:
+    def get_available_leagues(self) -> List[str]:
         if not self.clubs:
             self.load_all()
         leagues = {c.league for c in self.clubs.values()}
         return sorted(list(leagues))
 
 
-# Global cache for loaded data
-_loaded_data: tuple[dict[int, ClubDataFull], dict[int, PlayerDataFull]] | None = None
+_loaded_data: Optional[Tuple[Dict[int, ClubDataFull], Dict[int, PlayerDataFull]]] = None
 
 
-def load_for_match_engine() -> tuple[dict[int, ClubDataFull], dict[int, PlayerDataFull]]:
-    """Load data for match engine with singleton pattern to avoid repeated loading."""
+def load_for_match_engine() -> Tuple[Dict[int, ClubDataFull], Dict[int, PlayerDataFull]]:
     global _loaded_data
     if _loaded_data is None:
         loader = CleanedDataLoaderV2()
@@ -357,8 +355,7 @@ def load_for_match_engine() -> tuple[dict[int, ClubDataFull], dict[int, PlayerDa
     return _loaded_data
 
 
-def reload_data() -> tuple[dict[int, ClubDataFull], dict[int, PlayerDataFull]]:
-    """Force reload data from disk."""
+def reload_data() -> Tuple[Dict[int, ClubDataFull], Dict[int, PlayerDataFull]]:
     global _loaded_data
     loader = CleanedDataLoaderV2()
     _loaded_data = loader.load_all()

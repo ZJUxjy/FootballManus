@@ -9,7 +9,7 @@ Handles all financial aspects of club management:
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from enum import Enum, auto
-from typing import Callable, Union, List, Tuple
+from typing import Callable, Union, List, Tuple, Optional
 
 from fm_manager.core.models import Club, League, Match, MatchStatus, Player
 
@@ -519,3 +519,293 @@ def format_money(amount: int) -> str:
         return f"€{amount/1_000:.0f}K"
     else:
         return f"€{amount}"
+
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fm_manager.core.models.club import Club
+    from fm_manager.core.models.sponsorship import Sponsor
+
+
+class FinancialWarning(Enum):
+    BANKRUPTCY_RISK = "bankruptcy_risk"
+    LOW_CASH = "low_cash"
+    HIGH_WAGE_BILL = "high_wage_bill"
+    LOW_TRANSFER_BUDGET = "low_transfer_budget"
+    FACILITY_MAINTENANCE_HIGH = "facility_maintenance_high"
+
+
+@dataclass
+class FinancialReport:
+    week: int = 0
+    matchday_income: int = 0
+    sponsor_income: int = 0
+    commercial_income: int = 0
+    other_income: int = 0
+    
+    @property
+    def total_income(self) -> int:
+        return self.matchday_income + self.sponsor_income + self.commercial_income + self.other_income
+    
+    player_wages: int = 0
+    staff_wages: int = 0
+    facility_maintenance: int = 0
+    other_expenses: int = 0
+    
+    @property
+    def total_expenses(self) -> int:
+        return self.player_wages + self.staff_wages + self.facility_maintenance + self.other_expenses
+    
+    @property
+    def net_income(self) -> int:
+        """Calculate net income (income minus expenses)."""
+        return self.total_income - self.total_expenses
+    
+    def to_dict(self) -> dict:
+        """Convert report to dictionary for serialization."""
+        return {
+            "week": self.week,
+            "income": {
+                "matchday": self.matchday_income,
+                "sponsor": self.sponsor_income,
+                "commercial": self.commercial_income,
+                "other": self.other_income,
+                "total": self.total_income,
+            },
+            "expenses": {
+                "player_wages": self.player_wages,
+                "staff_wages": self.staff_wages,
+                "facility_maintenance": self.facility_maintenance,
+                "other": self.other_expenses,
+                "total": self.total_expenses,
+            },
+            "net_income": self.net_income,
+        }
+
+
+@dataclass
+class BudgetAllocation:
+    player_wages: int = 0
+    staff_wages: int = 0
+    facility_maintenance: int = 0
+    transfer_budget: int = 0
+    emergency_fund: int = 0
+    
+    @property
+    def total_allocated(self) -> int:
+        return (self.player_wages + self.staff_wages + 
+                self.facility_maintenance + self.transfer_budget + 
+                self.emergency_fund)
+    
+    def to_dict(self) -> dict:
+        return {
+            "player_wages": self.player_wages,
+            "staff_wages": self.staff_wages,
+            "facility_maintenance": self.facility_maintenance,
+            "transfer_budget": self.transfer_budget,
+            "emergency_fund": self.emergency_fund,
+            "total": self.total_allocated,
+        }
+
+
+class FinancialManager:
+    BUDGET_RATIOS = {
+        "player_wages": 0.50,
+        "staff_wages": 0.15,
+        "facility_maintenance": 0.10,
+        "transfer_budget": 0.15,
+        "emergency_fund": 0.10,
+    }
+    LOW_CASH_WEEKS = 4
+    HIGH_WAGE_RATIO = 0.70
+
+    def __init__(self, club: "Club"):
+        self.club = club
+
+    def process_weekly_finances(
+        self,
+        week: int = 0,
+        matchday_income: Optional[int] = None,
+        other_income: int = 0,
+        other_expenses: int = 0
+    ) -> FinancialReport:
+        report = FinancialReport(week=week)
+
+        if matchday_income is None:
+            report.matchday_income = self.calculate_matchday_income()
+        else:
+            report.matchday_income = matchday_income
+
+        report.sponsor_income = self.calculate_sponsor_income()
+        report.commercial_income = self.club.commercial_income
+        report.other_income = other_income
+
+        report.player_wages = self.club.weekly_wage_bill
+        report.staff_wages = self.calculate_staff_wages()
+        report.facility_maintenance = self.calculate_facility_maintenance()
+        report.other_expenses = other_expenses
+
+        self.club.balance += report.net_income
+
+        self._update_club_financial_fields(report)
+
+        return report
+    
+    def _update_club_financial_fields(self, report: FinancialReport) -> None:
+        if hasattr(self.club, 'facility_maintenance'):
+            self.club.facility_maintenance = report.facility_maintenance
+        if hasattr(self.club, 'staff_wages'):
+            self.club.staff_wages = report.staff_wages
+        if hasattr(self.club, 'sponsor_income'):
+            self.club.sponsor_income = report.sponsor_income
+
+    def calculate_staff_wages(self) -> int:
+        if not self.club.staff:
+            return 0
+        return sum(staff.salary for staff in self.club.staff)
+
+    def calculate_facility_maintenance(self) -> int:
+        if not self.club.facilities:
+            return 0
+        return sum(facility.weekly_maintenance for facility in self.club.facilities)
+
+    def calculate_sponsor_income(self) -> int:
+        if not self.club.sponsors:
+            return 0
+
+        total = 0
+        for sponsor in self.club.sponsors:
+            if hasattr(sponsor, 'is_active') and sponsor.is_active:
+                total += sponsor.base_annual_payment // 52
+            elif hasattr(sponsor, 'status') and sponsor.status.value == 'active':
+                total += sponsor.base_annual_payment // 52
+            else:
+                total += sponsor.base_annual_payment // 52
+
+        return total
+    
+    def calculate_matchday_income(
+        self,
+        attendance_percent: float = 0.8,
+        is_home_match: bool = True
+    ) -> int:
+        if not is_home_match:
+            return 0
+
+        attendance = int(self.club.stadium_capacity * attendance_percent)
+        return attendance * self.club.ticket_price
+
+    def calculate_total_income(self, include_matchday: bool = True) -> int:
+        income = (
+            self.calculate_sponsor_income() +
+            self.club.commercial_income
+        )
+
+        if include_matchday:
+            income += self.calculate_matchday_income()
+
+        return income
+
+    def check_financial_health(self) -> List[FinancialWarning]:
+        warnings = []
+
+        if self.club.balance < 0:
+            warnings.append(FinancialWarning.BANKRUPTCY_RISK)
+        elif self.club.balance < self.club.weekly_wage_bill * self.LOW_CASH_WEEKS:
+            warnings.append(FinancialWarning.LOW_CASH)
+
+        total_wages = self.club.weekly_wage_bill + self.calculate_staff_wages()
+        weekly_income = self.calculate_total_income()
+
+        if weekly_income > 0:
+            wage_ratio = total_wages / weekly_income
+            if wage_ratio > self.HIGH_WAGE_RATIO:
+                warnings.append(FinancialWarning.HIGH_WAGE_BILL)
+        elif total_wages > 0:
+            warnings.append(FinancialWarning.HIGH_WAGE_BILL)
+
+        if self.club.transfer_budget < self.club.weekly_wage_bill * 10:
+            warnings.append(FinancialWarning.LOW_TRANSFER_BUDGET)
+
+        maintenance = self.calculate_facility_maintenance()
+        if weekly_income > 0 and maintenance / weekly_income > 0.20:
+            warnings.append(FinancialWarning.FACILITY_MAINTENANCE_HIGH)
+
+        return warnings
+    
+    def suggest_budget_allocation(self) -> BudgetAllocation:
+        weekly_income = self.calculate_total_income()
+
+        return BudgetAllocation(
+            player_wages=int(weekly_income * self.BUDGET_RATIOS["player_wages"]),
+            staff_wages=int(weekly_income * self.BUDGET_RATIOS["staff_wages"]),
+            facility_maintenance=int(weekly_income * self.BUDGET_RATIOS["facility_maintenance"]),
+            transfer_budget=int(weekly_income * self.BUDGET_RATIOS["transfer_budget"]),
+            emergency_fund=int(weekly_income * self.BUDGET_RATIOS["emergency_fund"]),
+        )
+    
+    def get_financial_summary(self) -> dict:
+        total_income = self.calculate_total_income()
+        staff_wages = self.calculate_staff_wages()
+        facility_costs = self.calculate_facility_maintenance()
+        total_wages = self.club.weekly_wage_bill + staff_wages
+
+        return {
+            "club_id": getattr(self.club, 'id', None),
+            "club_name": getattr(self.club, 'name', 'Unknown'),
+            "current_balance": self.club.balance,
+            "transfer_budget": self.club.transfer_budget,
+            "wage_budget": self.club.wage_budget,
+            "weekly_finances": {
+                "income": {
+                    "sponsor": self.calculate_sponsor_income(),
+                    "commercial": self.club.commercial_income,
+                    "matchday_estimate": self.calculate_matchday_income(),
+                    "total": total_income,
+                },
+                "expenses": {
+                    "player_wages": self.club.weekly_wage_bill,
+                    "staff_wages": staff_wages,
+                    "facility_maintenance": facility_costs,
+                    "total_expenses": total_wages + facility_costs,
+                },
+                "net": total_income - (total_wages + facility_costs),
+            },
+            "warnings": [w.value for w in self.check_financial_health()],
+            "recommended_allocation": self.suggest_budget_allocation().to_dict(),
+        }
+
+    def can_afford_weekly_expenses(self, weeks: int = 4) -> bool:
+        weekly_expenses = (
+            self.club.weekly_wage_bill +
+            self.calculate_staff_wages() +
+            self.calculate_facility_maintenance()
+        )
+        return self.club.balance >= weekly_expenses * weeks
+
+    def project_financial_position(self, weeks: int = 52) -> dict:
+        weekly_income = self.calculate_total_income()
+        weekly_expenses = (
+            self.club.weekly_wage_bill +
+            self.calculate_staff_wages() +
+            self.calculate_facility_maintenance()
+        )
+        weekly_net = weekly_income - weekly_expenses
+
+        projected_balance = self.club.balance + (weekly_net * weeks)
+
+        return {
+            "starting_balance": self.club.balance,
+            "projected_balance": projected_balance,
+            "weekly_income": weekly_income,
+            "weekly_expenses": weekly_expenses,
+            "weekly_net": weekly_net,
+            "weeks_projected": weeks,
+            "will_be_profitable": projected_balance > self.club.balance,
+            "bankruptcy_risk": projected_balance < 0,
+        }
+
+
+def create_financial_manager(club: "Club") -> FinancialManager:
+    return FinancialManager(club)

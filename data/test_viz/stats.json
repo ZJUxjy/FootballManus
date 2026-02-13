@@ -1,0 +1,12 @@
+{
+  "total_generated": 1000000,
+  "selected": 1000,
+  "ca_mean": 88.479,
+  "ca_min": 23,
+  "ca_max": 130,
+  "pa_mean": 142.209,
+  "pa_min": 124,
+  "pa_max": 187,
+  "time_seconds": 0.41759490966796875,
+  "speed": 2394665.205079017
+}

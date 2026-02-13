@@ -1,16 +1,16 @@
 # Global LLM configuration
 [llm]
-model = "deepseek-ai/DeepSeek-V3.2"                   # The LLM model to use
-base_url = "https://api.siliconflow.cn/v1"
-api_key = "sk-qbyrsbvhbufpfuynrfhtwyjoukhaciugqkqtrwanpdcudrqq"
+model = "glm-4.7"                   # The LLM model to use (智谱 AI GLM-4)
+base_url = "https://open.bigmodel.cn/api/coding/paas/v4"
+api_key = "dbe2f6b839484dda8e3055d9d902c909.q9yMV2tphPMgjcvE"
 max_tokens = 32552                           # Maximum number of tokens in the response
 temperature = 0.5                           # Controls randomness
 
 # Optional configuration for specific LLM models
 [llm.vision]
-model = "Pro/zai-org/GLM-4.7"
-base_url = "https://api.siliconflow.cn/v1"
-api_key = "sk-qbyrsbvhbufpfuynrfhtwyjoukhaciugqkqtrwanpdcudrqq"
+model = "GLM-4.6V"
+base_url = "https://open.bigmodel.cn/api/coding/paas/v4"
+api_key = "dbe2f6b839484dda8e3055d9d902c909.q9yMV2tphPMgjcvE"
 max_tokens = 32552
 temperature = 0.5
 

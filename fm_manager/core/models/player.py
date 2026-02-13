@@ -105,9 +105,9 @@ class Player(Base):
     teamwork: Mapped[int] = mapped_column(Integer, default=50)
     aggression: Mapped[int] = mapped_column(Integer, default=50)
     
-    # Overall ratings
     current_ability: Mapped[int] = mapped_column(Integer, default=50)
     potential_ability: Mapped[int] = mapped_column(Integer, default=50)
+    role: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     
     # Contract info
     club_id: Mapped[Optional[int]] = mapped_column(

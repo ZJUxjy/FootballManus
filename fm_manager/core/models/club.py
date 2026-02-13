@@ -14,6 +14,11 @@ if TYPE_CHECKING:
     from fm_manager.core.models.player import Player
     from fm_manager.core.models.match import Match
 
+# Import related models for relationships
+from fm_manager.core.models.facility import Facility
+from fm_manager.core.models.staff import Staff
+from fm_manager.core.models.sponsorship import Sponsor
+
 
 class ClubReputation(PyEnum):
     """Club reputation levels."""
@@ -92,6 +97,19 @@ class Club(Base):
     # Relationships
     league: Mapped["League"] = relationship(back_populates="clubs")
     players: Mapped[List["Player"]] = relationship(
+        back_populates="club",
+        lazy="dynamic",
+    )
+    facilities: Mapped[List["Facility"]] = relationship(
+        back_populates="club",
+        lazy="dynamic",
+    )
+    staff: Mapped[List["Staff"]] = relationship(
+        back_populates="club",
+        lazy="dynamic",
+    )
+    sponsors: Mapped[List["Sponsor"]] = relationship(
+        "Sponsor",
         back_populates="club",
         lazy="dynamic",
     )
